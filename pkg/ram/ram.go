@@ -119,6 +119,13 @@ func (r *RAM) Set8(addr uint32, b byte) {
 	}
 }
 
+// Set16 sets half-word into addr
+func (r *RAM) Set16(addr uint32, value uint16) {
+	b0, b1 := value&0xff, (value>>8)&0xff
+	r.Set8(addr, byte(b0))
+	r.Set8(addr+1, byte(b1))
+}
+
 // Set32 sets word into addr
 func (r *RAM) Set32(addr uint32, value uint32) {
 	b0, b1, b2, b3 := value&0xff, (value>>8)&0xff, (value>>16)&0xff, (value>>24)&0xff
