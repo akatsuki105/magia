@@ -46,9 +46,13 @@ func (g *GBA) armExec(inst uint32) {
 		case IsSTR(inst):
 			g.armSTR(inst)
 		case IsLDRH(inst):
+			g.armLDRH(inst)
 		case IsLDRSB(inst):
+			g.armLDRSB(inst)
 		case IsLDRSH(inst):
+			g.armLDRSH(inst)
 		case IsSTRH(inst):
+			g.armSTRH(inst)
 		case IsMRS(inst):
 		case IsMSR(inst):
 		case IsMPY(inst):
@@ -650,3 +654,35 @@ func (g *GBA) armSMLAL(inst uint32) {
 		g.timer(4)
 	}
 }
+
+func (g *GBA) armLDRH(inst uint32) {
+	ofs := (((inst >> 8) & 0b1111) << 4) | (inst & 0b1111) // immediate
+	if !util.Bit(inst, 22) {
+		// register
+		rm := inst & 0b1111
+		ofs = g.R[rm]
+	}
+
+	rn, rd := (inst>>16)&0b1111, (inst>>12)&0b1111
+	addr := g.R[rn]
+	pre := util.Bit(inst, 24)
+	if pre {
+		if plus := util.Bit(inst, 23); plus {
+			addr += ofs
+		} else {
+			addr -= ofs
+		}
+		if writeBack := util.Bit(inst, 21); writeBack {
+			g.R[rn] = addr
+		}
+	}
+	g.R[rd] = uint32(uint16(g.RAM.Get(addr)))
+	g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+	if rd == 15 {
+		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]))
+	}
+}
+
+func (g *GBA) armLDRSB(inst uint32) {}
+func (g *GBA) armLDRSH(inst uint32) {}
+func (g *GBA) armSTRH(inst uint32)  {}
