@@ -54,7 +54,9 @@ func (g *GBA) armExec(inst uint32) {
 		case IsSTRH(inst):
 			g.armSTRH(inst)
 		case IsMRS(inst):
+			g.armMRS(inst)
 		case IsMSR(inst):
+			g.armMSR(inst)
 		case IsMPY(inst):
 			g.armMPY(inst)
 		case IsALU(inst):
@@ -762,4 +764,70 @@ func (g *GBA) armSTRH(inst uint32) {
 	}
 	g.RAM.Set16(addr, uint16(g.R[rd]))
 	g.timer(2 * g.cycleN(g.R[15]))
+}
+
+func (g *GBA) armMRS(inst uint32) {
+	useSpsr := util.ToBool(inst >> 22 & 0b1)
+	rd := (inst >> 12) & 0b1111
+	if useSpsr {
+		switch g.GetOSMode() {
+		case FIQ:
+			g.R[rd] = g.SPSRFiq
+		case IRQ:
+			g.R[rd] = g.SPSRIrq
+		case SWI:
+			g.R[rd] = g.SPSRSvc
+		case ABT:
+			g.R[rd] = g.SPSRAbt
+		case UND:
+			g.R[rd] = g.SPSRUnd
+		}
+		return
+	}
+	g.R[rd] = g.CPSR
+	g.timer(g.cycleS(g.R[15]))
+}
+
+func (g *GBA) armMSR(inst uint32) {
+	useSpsr := util.ToBool(inst >> 22 & 0b1)
+	value := uint32(0)
+	if util.Bit(inst, 25) {
+		// immediate Psr[field] = Rm
+		rm := inst & 0b1111
+		value = g.R[rm]
+	} else {
+		// register Psr[field] = Imm
+		is, imm := ((inst>>8)&0b1111)*2, inst&0b1111_1111
+		value = util.ROR(imm, uint(is))
+	}
+
+	var psr *uint32
+	if useSpsr {
+		switch g.GetOSMode() {
+		case FIQ:
+			psr = &g.SPSRFiq
+		case IRQ:
+			psr = &g.SPSRIrq
+		case SWI:
+			psr = &g.SPSRSvc
+		case ABT:
+			psr = &g.SPSRAbt
+		case UND:
+			psr = &g.SPSRUnd
+		default:
+			psr = &g.CPSR
+		}
+	} else {
+		psr = &g.CPSR
+	}
+
+	b0, b1, b2, b3 := (*psr)&0xff, ((*psr)>>8)&0xff, ((*psr)>>16)&0xff, ((*psr)>>24)&0xff
+	if f := util.Bit(inst, 19); f {
+		b3 = (value >> 24) & 0xff
+	}
+	if c := util.Bit(inst, 16); c {
+		b0 = value & 0xff
+	}
+	*psr = b3<<24 | b2<<16 | b1<<8 | b0
+	g.timer(g.cycleS(g.R[15]))
 }
