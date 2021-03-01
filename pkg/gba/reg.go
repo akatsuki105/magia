@@ -51,3 +51,8 @@ func (r *Reg) GetCPSRFlag(idx int) bool {
 	}
 	return util.ToBool((r.CPSR >> idx) & 1)
 }
+
+// GetOSMode get Processor mode
+func (r *Reg) GetOSMode() Mode {
+	return Mode(r.CPSR & 0b11111)
+}
