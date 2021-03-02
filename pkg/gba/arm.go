@@ -2,6 +2,7 @@ package gba
 
 import (
 	"fmt"
+	"mettaur/pkg/ram"
 	"mettaur/pkg/util"
 )
 
@@ -19,11 +20,27 @@ func (g *GBA) armStep() {
 
 func (g *GBA) armFetch() uint32 {
 	pc := g.R[15]
-	if g.lastAddr+4 == pc {
-		// sequential
-	} else {
-		// non-sequential
+
+	switch {
+	case ram.BIOS(pc) || ram.IWRAM(pc) || ram.IO(pc) || ram.OAM(pc):
+		g.timer(1) // 32bit * 1
+	case ram.Palette(pc) || ram.VRAM(pc):
+		g.timer(1 * 2) // 16bit * 2
+	case ram.EWRAM(pc):
+		g.timer(3 * 2) // 16bit * 2
+	case ram.GamePak0(pc) || ram.GamePak1(pc) || ram.GamePak2(pc):
+		// 16bit * 2
+		if g.lastAddr+4 == pc {
+			// sequential
+			g.timer(2 * g.cycleS(pc))
+		} else {
+			// non-sequential
+			g.timer(g.cycleN(pc) + g.cycleS(pc))
+		}
+	case ram.SRAM(pc):
+		g.timer(5 * 4) // 8bit * 4
 	}
+
 	return g.RAM.Get(pc)
 }
 
@@ -31,35 +48,35 @@ func (g *GBA) armExec(inst uint32) {
 	cond := Cond(inst >> 28)
 	if g.Check(cond) {
 		switch {
-		case IsSWI(inst):
+		case IsArmSWI(inst):
 			g.armSWI(inst)
-		case IsBranch(inst) || IsBX(inst):
+		case IsArmBranch(inst) || IsArmBX(inst):
 			g.armBranch(inst)
-		case IsStack(inst):
+		case IsArmStack(inst):
 			if util.Bit(inst, 20) {
 				g.armLDM(inst)
 			} else {
 				g.armSTM(inst)
 			}
-		case IsLDR(inst):
+		case IsArmLDR(inst):
 			g.armLDR(inst)
-		case IsSTR(inst):
+		case IsArmSTR(inst):
 			g.armSTR(inst)
-		case IsLDRH(inst):
+		case IsArmLDRH(inst):
 			g.armLDRH(inst)
-		case IsLDRSB(inst):
+		case IsArmLDRSB(inst):
 			g.armLDRSB(inst)
-		case IsLDRSH(inst):
+		case IsArmLDRSH(inst):
 			g.armLDRSH(inst)
-		case IsSTRH(inst):
+		case IsArmSTRH(inst):
 			g.armSTRH(inst)
-		case IsMRS(inst):
+		case IsArmMRS(inst):
 			g.armMRS(inst)
-		case IsMSR(inst):
+		case IsArmMSR(inst):
 			g.armMSR(inst)
-		case IsMPY(inst):
+		case IsArmMPY(inst):
 			g.armMPY(inst)
-		case IsALU(inst):
+		case IsArmALU(inst):
 			g.armALU(inst)
 		}
 	} else {
@@ -74,7 +91,7 @@ func (g *GBA) armSWI(inst uint32) {
 }
 
 func (g *GBA) armBranch(inst uint32) {
-	if IsBX(inst) {
+	if IsArmBX(inst) {
 		g.armBX(inst)
 	}
 	if util.Bit(inst, 24) {
@@ -357,8 +374,8 @@ func (g *GBA) armSUB(inst uint32) {
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-		v := (g.R[rn] ^ op2) & (g.R[rn] ^ g.R[rd]) & 0x8000_0000
-		g.SetCPSRFlag(flagV, util.ToBool(v))
+		g.SetCPSRFlag(flagV, util.SubV(g.R[rn], op2, g.R[rd]))
+
 	}
 }
 
@@ -368,8 +385,7 @@ func (g *GBA) armRSB(inst uint32) {
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-		v := (op2 ^ g.R[rn]) & (op2 ^ g.R[rd]) & 0x8000_0000
-		g.SetCPSRFlag(flagV, util.ToBool(v))
+		g.SetCPSRFlag(flagV, util.SubV(op2, g.R[rn], g.R[rd]))
 	}
 }
 
@@ -379,8 +395,8 @@ func (g *GBA) armADD(inst uint32) {
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-		v := ^(g.R[rn] ^ op2) & (g.R[rn] ^ g.R[rd]) & 0x8000_0000
-		g.SetCPSRFlag(flagV, util.ToBool(v))
+		g.SetCPSRFlag(flagV, util.AddV(g.R[rn], op2, g.R[rd]))
+
 	}
 }
 
@@ -394,8 +410,7 @@ func (g *GBA) armADC(inst uint32) {
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-		v := ^(g.R[rn] ^ op2) & (g.R[rn] ^ g.R[rd]) & 0x8000_0000
-		g.SetCPSRFlag(flagV, util.ToBool(v))
+		g.SetCPSRFlag(flagV, util.AddV(g.R[rn], op2, g.R[rd]))
 	}
 }
 
@@ -409,8 +424,7 @@ func (g *GBA) armSBC(inst uint32) {
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-		v := (g.R[rn] ^ op2) & (g.R[rn] ^ g.R[rd]) & 0x8000_0000
-		g.SetCPSRFlag(flagV, util.ToBool(v))
+		g.SetCPSRFlag(flagV, util.SubV(g.R[rn], op2, g.R[rd]))
 	}
 }
 
@@ -424,8 +438,7 @@ func (g *GBA) armRSC(inst uint32) {
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-		v := (op2 ^ g.R[rn]) & (op2 ^ g.R[rd]) & 0x8000_0000
-		g.SetCPSRFlag(flagV, util.ToBool(v))
+		g.SetCPSRFlag(flagV, util.SubV(op2, g.R[rn], g.R[rd]))
 	}
 }
 
@@ -453,8 +466,7 @@ func (g *GBA) armCMP(inst uint32) {
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, result == 0)
 		g.SetCPSRFlag(flagN, util.Bit(result, 31))
-		v := (g.R[rn] ^ op2) & (g.R[rn] ^ result) & 0x8000_0000
-		g.SetCPSRFlag(flagV, util.ToBool(v))
+		g.SetCPSRFlag(flagV, util.SubV(g.R[rn], op2, result))
 	}
 }
 
@@ -464,8 +476,7 @@ func (g *GBA) armCMN(inst uint32) {
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, result == 0)
 		g.SetCPSRFlag(flagN, util.Bit(result, 31))
-		v := ^(g.R[rn] ^ op2) & (g.R[rn] ^ result) & 0x8000_0000
-		g.SetCPSRFlag(flagV, util.ToBool(v))
+		g.SetCPSRFlag(flagV, util.AddV(g.R[rn], op2, result))
 	}
 }
 

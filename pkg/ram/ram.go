@@ -35,37 +35,39 @@ type GamePak struct {
 }
 
 func (r *RAM) Get(addr uint32) uint32 {
-	if ok, offset := BIOS(addr); ok {
+	switch {
+	case BIOS(addr):
+		offset := BIOSOffset(addr)
 		return binary.LittleEndian.Uint32(r.BIOS[offset : offset+3])
-	}
-	if ok, offset := EWRAM(addr); ok {
+	case EWRAM(addr):
+		offset := EWRAMOffset(addr)
 		return binary.LittleEndian.Uint32(r.EWRAM[offset : offset+3])
-	}
-	if ok, offset := IWRAM(addr); ok {
+	case IWRAM(addr):
+		offset := IWRAMOffset(addr)
 		return binary.LittleEndian.Uint32(r.IWRAM[offset : offset+3])
-	}
-	if ok, offset := IO(addr); ok {
+	case IO(addr):
+		offset := IOOffset(addr)
 		return binary.LittleEndian.Uint32(r.IO[offset : offset+3])
-	}
-	if ok, offset := Palette(addr); ok {
+	case Palette(addr):
+		offset := PaletteOffset(addr)
 		return binary.LittleEndian.Uint32(r.Palette[offset : offset+3])
-	}
-	if ok, offset := VRAM(addr); ok {
+	case VRAM(addr):
+		offset := VRAMOffset(addr)
 		return binary.LittleEndian.Uint32(r.VRAM[offset : offset+3])
-	}
-	if ok, offset := OAM(addr); ok {
+	case OAM(addr):
+		offset := OAMOffset(addr)
 		return binary.LittleEndian.Uint32(r.OAM[offset : offset+3])
-	}
-	if ok, offset := GamePak0(addr); ok {
+	case GamePak0(addr):
+		offset := GamePak0Offset(addr)
 		return binary.LittleEndian.Uint32(r.GamePak0[offset : offset+3])
-	}
-	if ok, offset := GamePak1(addr); ok {
+	case GamePak1(addr):
+		offset := GamePak1Offset(addr)
 		return binary.LittleEndian.Uint32(r.GamePak1[offset : offset+3])
-	}
-	if ok, offset := GamePak2(addr); ok {
+	case GamePak2(addr):
+		offset := GamePak2Offset(addr)
 		return binary.LittleEndian.Uint32(r.GamePak2[offset : offset+3])
-	}
-	if ok, offset := SRAM(addr); ok {
+	case SRAM(addr):
+		offset := SRAMOffset(addr)
 		return binary.LittleEndian.Uint32(r.SRAM[offset : offset+3])
 	}
 	return 0
@@ -73,49 +75,29 @@ func (r *RAM) Get(addr uint32) uint32 {
 
 // Set8 sets byte into addr
 func (r *RAM) Set8(addr uint32, b byte) {
-	if ok, offset := BIOS(addr); ok {
-		r.BIOS[offset] = b
-		return
-	}
-	if ok, offset := EWRAM(addr); ok {
-		r.EWRAM[offset] = b
-		return
-	}
-	if ok, offset := IWRAM(addr); ok {
-		r.IWRAM[offset] = b
-		return
-	}
-	if ok, offset := IO(addr); ok {
-		r.IO[offset] = b
-		return
-	}
-	if ok, offset := Palette(addr); ok {
-		r.Palette[offset] = b
-		return
-	}
-	if ok, offset := VRAM(addr); ok {
-		r.VRAM[offset] = b
-		return
-	}
-	if ok, offset := OAM(addr); ok {
-		r.OAM[offset] = b
-		return
-	}
-	if ok, offset := GamePak0(addr); ok {
-		r.GamePak0[offset] = b
-		return
-	}
-	if ok, offset := GamePak1(addr); ok {
-		r.GamePak1[offset] = b
-		return
-	}
-	if ok, offset := GamePak2(addr); ok {
-		r.GamePak2[offset] = b
-		return
-	}
-	if ok, offset := SRAM(addr); ok {
-		r.SRAM[offset] = b
-		return
+	switch {
+	case BIOS(addr):
+		r.BIOS[BIOSOffset(addr)] = b
+	case EWRAM(addr):
+		r.EWRAM[EWRAMOffset(addr)] = b
+	case IWRAM(addr):
+		r.IWRAM[IWRAMOffset(addr)] = b
+	case IO(addr):
+		r.IO[IOOffset(addr)] = b
+	case Palette(addr):
+		r.Palette[PaletteOffset(addr)] = b
+	case VRAM(addr):
+		r.VRAM[VRAMOffset(addr)] = b
+	case OAM(addr):
+		r.OAM[OAMOffset(addr)] = b
+	case GamePak0(addr):
+		r.GamePak0[GamePak0Offset(addr)] = b
+	case GamePak1(addr):
+		r.GamePak1[GamePak1Offset(addr)] = b
+	case GamePak2(addr):
+		r.GamePak2[GamePak2Offset(addr)] = b
+	case SRAM(addr):
+		r.SRAM[SRAMOffset(addr)] = b
 	}
 }
 

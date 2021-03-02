@@ -10,41 +10,37 @@ var (
 )
 
 func (g *GBA) cycleN(addr uint32) int {
-	if ok, _ := ram.GamePak0(addr); ok {
+	switch {
+	case ram.GamePak0(addr):
 		idx := g.RAM.Get(addr) >> 2 & 0b11
-		return wsN[idx]
-	}
-	if ok, _ := ram.GamePak1(addr); ok {
+		return wsN[idx] + 1
+	case ram.GamePak1(addr):
 		idx := g.RAM.Get(addr) >> 5 & 0b11
-		return wsN[idx]
-	}
-	if ok, _ := ram.GamePak2(addr); ok {
+		return wsN[idx] + 1
+	case ram.GamePak2(addr):
 		idx := g.RAM.Get(addr) >> 8 & 0b11
-		return wsN[idx]
-	}
-	if ok, _ := ram.SRAM(addr); ok {
+		return wsN[idx] + 1
+	case ram.SRAM(addr):
 		idx := g.RAM.Get(addr) & 0b11
-		return wsN[idx]
+		return wsN[idx] + 1
 	}
 	return 1
 }
 
 func (g *GBA) cycleS(addr uint32) int {
-	if ok, _ := ram.GamePak0(addr); ok {
+	switch {
+	case ram.GamePak0(addr):
 		idx := g.RAM.Get(addr) >> 4 & 0b1
-		return wsS0[idx]
-	}
-	if ok, _ := ram.GamePak1(addr); ok {
+		return wsS0[idx] + 1
+	case ram.GamePak1(addr):
 		idx := g.RAM.Get(addr) >> 7 & 0b1
-		return wsS1[idx]
-	}
-	if ok, _ := ram.GamePak2(addr); ok {
+		return wsS1[idx] + 1
+	case ram.GamePak2(addr):
 		idx := g.RAM.Get(addr) >> 10 & 0b1
-		return wsS2[idx]
-	}
-	if ok, _ := ram.SRAM(addr); ok {
+		return wsS2[idx] + 1
+	case ram.SRAM(addr):
 		idx := g.RAM.Get(addr) & 0b11
-		return wsN[idx]
+		return wsN[idx] + 1
 	}
 	return 1
 }

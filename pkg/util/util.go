@@ -64,10 +64,57 @@ func BoolToInt(b bool) int {
 }
 
 // Bit check val's idx bit
-func Bit(val uint32, idx int) bool {
-	if idx < 0 || idx > 31 {
-		return false
-	}
+func Bit(val interface{}, idx int) bool {
+	switch val := val.(type) {
+	case uint64:
+		if idx < 0 || idx > 63 {
+			return false
+		}
+		return (val & (1 << idx)) != 0
 
-	return (val & (1 << idx)) != 0
+	case uint32:
+		if idx < 0 || idx > 31 {
+			return false
+		}
+		return (val & (1 << idx)) != 0
+
+	case uint:
+		if idx < 0 || idx > 31 {
+			return false
+		}
+		return (val & (1 << idx)) != 0
+
+	case int:
+		if idx < 0 || idx > 31 {
+			return false
+		}
+		return (val & (1 << idx)) != 0
+
+	case uint16:
+		if idx < 0 || idx > 15 {
+			return false
+		}
+		return (val & (1 << idx)) != 0
+
+	case byte:
+		if idx < 0 || idx > 7 {
+			return false
+		}
+		return (val & (1 << idx)) != 0
+	}
+	return false
+}
+
+func AddV(lhs, rhs, res uint32) bool {
+	v := ^(lhs ^ rhs) & (lhs ^ res) & 0x80000000
+	return ToBool(v)
+}
+
+func SubV(lhs, rhs, res uint32) bool {
+	v := (lhs ^ rhs) & (lhs ^ res) & 0x80000000
+	return ToBool(v)
+}
+
+func Align4(val uint32) uint32 {
+	return val & 0xffff_ff00
 }
