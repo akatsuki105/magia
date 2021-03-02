@@ -47,6 +47,36 @@ func (g *GBA) thumbExec(inst uint16) {
 		g.thumbALU(inst)
 	case IsHiRegisterBX(inst):
 		g.thumbHiRegisterBX(inst)
+	case IsThumbLoadPCRel(inst):
+		g.thumbLoadPCRel(inst)
+	case IsThumbLoadStoreRegOfs(inst):
+		g.thumbLoadStoreRegOfs(inst)
+	case IsThumbLoadStoreSBH(inst):
+		g.thumbLoadStoreSBH(inst)
+	case IsThumbLoadStoreImmOfs(inst):
+		g.thumbLoadStoreImmOfs(inst)
+	case IsThumbLoadStoreH(inst):
+		g.thumbLoadStoreH(inst)
+	case IsThumbLoadSPRel(inst):
+		g.thumbLoadSPRel(inst)
+	case IsThumbStack(inst):
+		g.thumbStack(inst)
+	case IsThumbStackMultiple(inst):
+		g.thumbStackMultiple(inst)
+	case IsThumbGetAddr(inst):
+		g.thumbGetAddr(inst)
+	case IsThumbMoveSP(inst):
+		g.thumbMoveSP(inst)
+	case IsThumbCondBranch(inst):
+		g.thumbCondBranch(inst)
+	case IsThumbSWI(inst):
+		g.thumbSWI(inst)
+	case IsThumbB(inst):
+		g.thumbB(inst)
+	case IsThumbLinkBranch1(inst):
+		g.thumbLinkBranch1(inst)
+	case IsThumbLinkBranch2(inst):
+		g.thumbLinkBranch2(inst)
 	}
 }
 
@@ -248,3 +278,108 @@ func (g *GBA) thumbHiRegisterBX(inst uint16) {
 	}
 	g.timer(g.cycleS(g.R[15]))
 }
+
+func (g *GBA) thumbLoadPCRel(inst uint16) {
+	rd, nn := (inst>>8)&0b111, uint32(inst&0b1111_1111)*4
+	pc := util.Align4(g.R[15] + 4)
+	g.R[rd] = g.RAM.Get(pc + nn)
+	g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+}
+
+func (g *GBA) thumbLoadStoreRegOfs(inst uint16) {
+	ro, rb, rd := (inst>>6)&0b111, (inst>>3)&0b111, inst&0b111
+
+	opcode := (inst >> 10) & 0b11
+	switch opcode {
+	case 0:
+		g.RAM.Set32(g.R[rb]+g.R[ro], g.R[rd]) // STR Rd,[Rb,Ro] (WORD[Rb+Ro] = Rd)
+		g.timer(2 * g.cycleN(g.R[15]))
+	case 1:
+		g.RAM.Set8(g.R[rb]+g.R[ro], byte(g.R[rd])) // STRB Rd,[Rb,Ro] (BYTE[Rb+Ro] = Rd)
+		g.timer(2 * g.cycleN(g.R[15]))
+	case 2:
+		g.R[rd] = g.RAM.Get(g.R[rb] + g.R[ro]) // LDR Rd,[Rb,Ro] (Rd = WORD[Rb+Ro])
+		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+	case 3:
+		g.R[rd] = uint32(byte(g.RAM.Get(g.R[rb] + g.R[ro]))) // LDRB Rd,[Rb,Ro] (Rd = BYTE[Rb+Ro])
+		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+	}
+}
+
+func (g *GBA) thumbLoadStoreSBH(inst uint16) {
+	ro, rb, rd := uint32((inst>>6)&0b111), (inst>>3)&0b111, inst&0b111
+
+	opcode := (inst >> 10) & 0b11
+	switch opcode {
+	case 0:
+		g.RAM.Set16(g.R[rb]+g.R[ro], uint16(g.R[rd])) // STRH Rd,[Rb,Ro]
+		g.timer(2 * g.cycleN(g.R[15]))
+	case 1:
+		g.R[rd] = uint32(int8(g.RAM.Get(g.R[rb] + g.R[ro]))) // LDSB Rd,[Rb,Ro]
+		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+	case 2:
+		g.R[rd] = uint32(uint16(g.RAM.Get(g.R[rb] + g.R[ro]))) // LDRH Rd,[Rb,Ro]
+		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+	case 3:
+		g.R[rd] = uint32(int16(g.RAM.Get(g.R[rb] + g.R[ro]))) // LDSH Rd,[Rb,Ro]
+		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+	}
+}
+
+func (g *GBA) thumbLoadStoreImmOfs(inst uint16) {
+	nn, rb, rd := uint32((inst>>6)&0b11111), (inst>>3)&0b111, inst&0b111
+
+	opcode := (inst >> 11) & 0b11
+	switch opcode {
+	case 0:
+		g.RAM.Set32(g.R[rb]+nn*4, g.R[rd]) // STR Rd,[Rb,Ro] (WORD[Rb+Ro] = Rd)
+		g.timer(2 * g.cycleN(g.R[15]))
+	case 1:
+		g.R[rd] = g.RAM.Get(g.R[rb] + nn*4) // LDR Rd,[Rb,Ro] (Rd = WORD[Rb+Ro])
+		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+	case 2:
+		g.RAM.Set8(g.R[rb]+nn, byte(g.R[rd])) // STRB Rd,[Rb,Ro] (BYTE[Rb+Ro] = Rd)
+		g.timer(2 * g.cycleN(g.R[15]))
+	case 3:
+		g.R[rd] = uint32(byte(g.RAM.Get(g.R[rb] + nn))) // LDRB Rd,[Rb,Ro] (Rd = BYTE[Rb+Ro])
+		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+	}
+}
+
+func (g *GBA) thumbLoadStoreH(inst uint16) {
+	nn, rb, rd := uint32(((inst>>6)&0b11111)*2), (inst>>3)&0b111, inst&0b111
+
+	opcode := (inst >> 11) & 0b1
+	switch opcode {
+	case 0:
+		g.RAM.Set16(g.R[rb]+nn, uint16(g.R[rd])) // STRH Rd,[Rb,#nn]
+		g.timer(2 * g.cycleN(g.R[15]))
+	case 1:
+		g.R[rd] = uint32(uint16(g.RAM.Get(g.R[rb] + nn))) // LDRH Rd,[Rb,#nn]
+		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+	}
+}
+
+func (g *GBA) thumbLoadSPRel(inst uint16) {
+	rd, nn := (inst>>8)&0b111, uint32((inst&0b1111_1111)*4)
+
+	sp, opcode := g.R[13], (inst>>11)&0b1
+	switch opcode {
+	case 0:
+		g.RAM.Set32(sp+nn, g.R[rd])
+		g.timer(2 * g.cycleN(g.R[15]))
+	case 1:
+		g.R[rd] = g.RAM.Get(sp + nn)
+		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+	}
+}
+
+func (g *GBA) thumbStack(inst uint16)         {}
+func (g *GBA) thumbStackMultiple(inst uint16) {}
+func (g *GBA) thumbGetAddr(inst uint16)       {}
+func (g *GBA) thumbMoveSP(inst uint16)        {}
+func (g *GBA) thumbCondBranch(inst uint16)    {}
+func (g *GBA) thumbSWI(inst uint16)           {}
+func (g *GBA) thumbB(inst uint16)             {}
+func (g *GBA) thumbLinkBranch1(inst uint16)   {}
+func (g *GBA) thumbLinkBranch2(inst uint16)   {}

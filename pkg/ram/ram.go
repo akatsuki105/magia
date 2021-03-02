@@ -1,7 +1,7 @@
 package ram
 
 import (
-	"encoding/binary"
+	"mettaur/pkg/util"
 )
 
 const (
@@ -38,37 +38,37 @@ func (r *RAM) Get(addr uint32) uint32 {
 	switch {
 	case BIOS(addr):
 		offset := BIOSOffset(addr)
-		return binary.LittleEndian.Uint32(r.BIOS[offset : offset+3])
+		return util.LE32(r.BIOS[offset:])
 	case EWRAM(addr):
 		offset := EWRAMOffset(addr)
-		return binary.LittleEndian.Uint32(r.EWRAM[offset : offset+3])
+		return util.LE32(r.EWRAM[offset:])
 	case IWRAM(addr):
 		offset := IWRAMOffset(addr)
-		return binary.LittleEndian.Uint32(r.IWRAM[offset : offset+3])
+		return util.LE32(r.IWRAM[offset:])
 	case IO(addr):
 		offset := IOOffset(addr)
-		return binary.LittleEndian.Uint32(r.IO[offset : offset+3])
+		return util.LE32(r.IO[offset:])
 	case Palette(addr):
 		offset := PaletteOffset(addr)
-		return binary.LittleEndian.Uint32(r.Palette[offset : offset+3])
+		return util.LE32(r.Palette[offset:])
 	case VRAM(addr):
 		offset := VRAMOffset(addr)
-		return binary.LittleEndian.Uint32(r.VRAM[offset : offset+3])
+		return util.LE32(r.VRAM[offset:])
 	case OAM(addr):
 		offset := OAMOffset(addr)
-		return binary.LittleEndian.Uint32(r.OAM[offset : offset+3])
+		return util.LE32(r.OAM[offset:])
 	case GamePak0(addr):
 		offset := GamePak0Offset(addr)
-		return binary.LittleEndian.Uint32(r.GamePak0[offset : offset+3])
+		return util.LE32(r.GamePak0[offset:])
 	case GamePak1(addr):
 		offset := GamePak1Offset(addr)
-		return binary.LittleEndian.Uint32(r.GamePak1[offset : offset+3])
+		return util.LE32(r.GamePak1[offset:])
 	case GamePak2(addr):
 		offset := GamePak2Offset(addr)
-		return binary.LittleEndian.Uint32(r.GamePak2[offset : offset+3])
+		return util.LE32(r.GamePak2[offset:])
 	case SRAM(addr):
 		offset := SRAMOffset(addr)
-		return binary.LittleEndian.Uint32(r.SRAM[offset : offset+3])
+		return util.LE32(r.SRAM[offset:])
 	}
 	return 0
 }

@@ -3,10 +3,16 @@ package gba
 const ()
 
 func (g *GBA) step() {
-	t := g.GetCPSRFlag(flagT)
-	if t {
+	if g.GetCPSRFlag(flagT) {
 		g.thumbStep()
-		return
+	} else {
+		g.armStep()
 	}
-	g.armStep()
+
+	// flagT may toggle in armStep/thumbStep
+	if g.GetCPSRFlag(flagT) {
+		g.R[15] += 2
+	} else {
+		g.R[15] += 4
+	}
 }

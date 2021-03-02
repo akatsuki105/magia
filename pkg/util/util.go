@@ -1,6 +1,7 @@
 package util
 
 import (
+	"encoding/binary"
 	"fmt"
 	"reflect"
 	"strings"
@@ -116,5 +117,24 @@ func SubV(lhs, rhs, res uint32) bool {
 }
 
 func Align4(val uint32) uint32 {
-	return val & 0xffff_ff00
+	return val & 0b1111_1111_1111_1111_1111_1111_1111_1100
+}
+func Align2(val uint32) uint32 {
+	return val & 0b1111_1111_1111_1111_1111_1111_1111_1110
+}
+
+// LE32 reads 32bit little-endian value from byteslice
+func LE32(bs []byte) uint32 {
+	switch len(bs) {
+	case 0:
+		return 0
+	case 1:
+		return uint32(bs[0])
+	case 2:
+		return uint32(bs[1])<<8 | uint32(bs[0])
+	case 3:
+		return uint32(bs[2])<<16 | uint32(bs[1])<<8 | uint32(bs[0])
+	default:
+		return binary.LittleEndian.Uint32(bs)
+	}
 }
