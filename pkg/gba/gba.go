@@ -12,6 +12,7 @@ type GBA struct {
 	RAM        ram.RAM
 	lastAddr   uint32
 	cycle      uint
+	PC         uint32
 }
 
 // New GBA

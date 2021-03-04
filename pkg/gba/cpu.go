@@ -8,11 +8,4 @@ func (g *GBA) step() {
 	} else {
 		g.armStep()
 	}
-
-	// flagT may toggle in armStep/thumbStep
-	if g.GetCPSRFlag(flagT) {
-		g.R[15] += 2
-	} else {
-		g.R[15] += 4
-	}
 }

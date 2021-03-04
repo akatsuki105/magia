@@ -15,11 +15,13 @@ const (
 
 func (g *GBA) armStep() {
 	inst := g.armFetch()
+	g.R[15] += 4 // Note that when reading R15, this will usually return a value of PC+4 because of read-ahead (pipelining).
 	g.armExec(inst)
 }
 
 func (g *GBA) armFetch() uint32 {
 	pc := g.R[15]
+	g.PC = pc
 
 	switch {
 	case ram.BIOS(pc) || ram.IWRAM(pc) || ram.IO(pc) || ram.OAM(pc):
@@ -80,9 +82,8 @@ func (g *GBA) armExec(inst uint32) {
 			g.armALU(inst)
 		}
 	} else {
-		g.timer(g.cycleS(g.R[15]))
+		g.timer(g.cycleS(g.PC))
 	}
-	g.R[15] += 4
 }
 
 func (g *GBA) armSWI(inst uint32) {
@@ -103,14 +104,14 @@ func (g *GBA) armBranch(inst uint32) {
 
 func (g *GBA) armB(inst uint32) {
 	nn := inst & 0b1111_1111_1111_1111_1111_1111
-	g.R[15] = g.R[15] + 8 + nn*4
+	g.R[15] = g.PC + 8 + nn*4
 	g.timer(2*g.cycleS(g.R[15]) + g.cycleN(g.R[15]))
 }
 
 func (g *GBA) armBL(inst uint32) {
 	nn := inst & 0b1111_1111_1111_1111_1111_1111
-	g.R[14] = g.R[15] + 4
-	g.R[15] = g.R[15] + 8 + nn*4
+	g.R[14] = g.PC + 4
+	g.R[15] = g.PC + 8 + nn*4
 	g.timer(2*g.cycleS(g.R[15]) + g.cycleN(g.R[15]))
 }
 

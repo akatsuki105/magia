@@ -12,6 +12,7 @@ func (g *GBA) thumbStep() {
 
 func (g *GBA) thumbFetch() uint16 {
 	pc := g.R[15]
+	g.PC = pc
 
 	switch {
 	case ram.BIOS(pc) || ram.IWRAM(pc) || ram.IO(pc) || ram.OAM(pc):
@@ -32,6 +33,7 @@ func (g *GBA) thumbFetch() uint16 {
 		g.timer(5 * 2) // 8bit * 2
 	}
 
+	g.R[15] += 2 // Note that when reading R15, this will usually return a value of PC+2 because of read-ahead (pipelining).
 	return uint16(g.RAM.Get(pc))
 }
 
@@ -281,7 +283,7 @@ func (g *GBA) thumbHiRegisterBX(inst uint16) {
 
 func (g *GBA) thumbLoadPCRel(inst uint16) {
 	rd, nn := (inst>>8)&0b111, uint32(inst&0b1111_1111)*4
-	pc := util.Align4(g.R[15] + 4)
+	pc := util.Align4(g.PC + 4)
 	g.R[rd] = g.RAM.Get(pc + nn)
 	g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
 }
@@ -374,12 +376,135 @@ func (g *GBA) thumbLoadSPRel(inst uint16) {
 	}
 }
 
-func (g *GBA) thumbStack(inst uint16)         {}
-func (g *GBA) thumbStackMultiple(inst uint16) {}
-func (g *GBA) thumbGetAddr(inst uint16)       {}
-func (g *GBA) thumbMoveSP(inst uint16)        {}
-func (g *GBA) thumbCondBranch(inst uint16)    {}
-func (g *GBA) thumbSWI(inst uint16)           {}
-func (g *GBA) thumbB(inst uint16)             {}
-func (g *GBA) thumbLinkBranch1(inst uint16)   {}
-func (g *GBA) thumbLinkBranch2(inst uint16)   {}
+// thumbStack push, pop
+func (g *GBA) thumbStack(inst uint16) {
+	rlist := inst & 0b1111_1111
+
+	opcode := (inst >> 11) & 0b1
+	switch opcode {
+	case 0:
+		n := 0
+		for i := 0; i < 8; i++ {
+			if util.ToBool(rlist & (0b1 << i)) {
+				g.RAM.Set32(g.R[13], g.R[i]) // PUSH
+				g.R[13] -= 4
+				n++
+			}
+		}
+		lr := util.Bit(inst, 8)
+		if lr {
+			g.RAM.Set32(g.R[13], g.R[14]) // PUSH lr
+			g.R[13] -= 4
+			n++
+		}
+		g.timer((n-1)*g.cycleS(g.R[15]) + 2*g.cycleN(g.R[15]))
+	case 1:
+		n := 0
+		for i := 0; i < 8; i++ {
+			if util.ToBool(rlist & (0b1 << i)) {
+				g.R[i] = g.RAM.Get(g.R[13]) // POP
+				g.R[13] += 4
+				n++
+			}
+		}
+		pc := util.Bit(inst, 8)
+		if pc {
+			g.R[15] = g.RAM.Get(g.R[13]) // POP pc
+			g.R[13] += 4
+			g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]))
+		}
+		g.timer(n*g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+	}
+}
+
+// thumbStackMultiple ldmia, stmia
+func (g *GBA) thumbStackMultiple(inst uint16) {
+	rb, rlist := (inst>>8)&0b111, inst&0b1111_1111
+	opcode := (inst >> 11) & 0b1
+	switch opcode {
+	case 0:
+		n := 0
+		for i := 0; i < 8; i++ {
+			if util.ToBool(rlist & (0b1 << i)) {
+				g.RAM.Set32(g.R[rb], g.R[i]) // STMIA
+				g.R[rb] += 4
+				n++
+			}
+		}
+		g.timer((n-1)*g.cycleS(g.R[15]) + 2*g.cycleN(g.R[15]))
+	case 1:
+		n := 0
+		for i := 0; i < 8; i++ {
+			if util.ToBool(rlist & (0b1 << i)) {
+				g.R[i] = g.RAM.Get(g.R[rb]) // LDMIA
+				g.R[rb] += 4
+				n++
+			}
+		}
+		g.timer(n*g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+	}
+}
+
+// thumbGetAddr get relative address
+func (g *GBA) thumbGetAddr(inst uint16) {
+	rd, nn := (inst>>8)&0b111, uint32((inst&0b1111_1111)*4)
+	opcode := (inst >> 11) & 0b1
+	switch opcode {
+	case 0:
+		g.R[rd] = util.Align4(g.PC+4) + nn // ADD  Rd,PC,#nn
+	case 1:
+		g.R[rd] = g.R[13] + nn // ADD  Rd,SP,#nn
+	}
+	g.timer(g.cycleS(g.R[15]))
+}
+
+func (g *GBA) thumbMoveSP(inst uint16) {
+	nn := uint32((inst & 0b0111_111) * 4)
+	opcode := (inst >> 7) & 0b1
+	switch opcode {
+	case 0:
+		g.R[13] += nn // ADD SP,#nn
+	case 1:
+		g.R[13] -= nn // ADD SP,#-nn
+	}
+	g.timer(g.cycleS(g.R[15]))
+}
+
+func (g *GBA) thumbCondBranch(inst uint16) {
+	cond := Cond((inst >> 8) & 0b1111)
+	if g.Check(cond) {
+		nn := int8((inst & 0b1111_1111) * 2)
+		if nn > 0 {
+			g.R[15] = g.PC + uint32(nn)
+		} else {
+			g.R[15] = g.PC - uint32(-nn)
+		}
+		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]))
+	}
+	g.timer(g.cycleS(g.R[15]))
+}
+
+func (g *GBA) thumbSWI(inst uint16) {}
+
+func (g *GBA) thumbB(inst uint16) {
+	nn := uint32(inst & 0b0111_1111_1111)
+	g.R[15] = g.PC + nn
+	g.timer(2*g.cycleS(g.R[15]) + g.cycleN(g.R[15]))
+}
+
+func (g *GBA) thumbLinkBranch1(inst uint16) {
+	nn := uint32(inst & 0b0111_1111_1111)
+	g.R[14] = g.PC + 4 + (nn << 12)
+	g.timer(g.cycleS(g.R[15]))
+}
+
+func (g *GBA) thumbLinkBranch2(inst uint16) {
+	opcode, nn := (inst>>11)&0b11111, inst&0b0111_1111_1111
+	g.R[15] = g.R[14] + uint32(nn<<1)
+	g.R[14] = g.PC + 2 // return
+	// BLX
+	if opcode == 0b11101 {
+		g.SetCPSRFlag(flagT, false)
+	}
+	g.timer(2*g.cycleS(g.R[15]) + g.cycleN(g.R[15]))
+}
