@@ -1,6 +1,7 @@
 package ram
 
 import (
+	_ "embed"
 	"mettaur/pkg/util"
 )
 
@@ -11,20 +12,35 @@ const (
 	gb
 )
 
+//go:embed bios.gba
+var sBIOS []byte
+
 // RAM struct
 type RAM struct {
 	BIOS  [16 * kb]byte
 	EWRAM [256 * kb]byte
 	IWRAM [32 * kb]byte
 	IO    [1 * kb]byte
-	VideoRAM
 	GamePak
 }
 
-type VideoRAM struct {
-	Palette [kb]byte
-	VRAM    [96 * kb]byte
-	OAM     [kb]byte
+func New(src []byte) *RAM {
+	bios := [16 * kb]byte{}
+	for i, b := range sBIOS {
+		bios[i] = b
+	}
+
+	gamePak0 := [32 * mb]byte{}
+	for i, b := range src {
+		gamePak0[i] = b
+	}
+
+	return &RAM{
+		BIOS: bios,
+		GamePak: GamePak{
+			GamePak0: gamePak0,
+		},
+	}
 }
 
 type GamePak struct {
@@ -48,15 +64,6 @@ func (r *RAM) Get(addr uint32) uint32 {
 	case IO(addr):
 		offset := IOOffset(addr)
 		return util.LE32(r.IO[offset:])
-	case Palette(addr):
-		offset := PaletteOffset(addr)
-		return util.LE32(r.Palette[offset:])
-	case VRAM(addr):
-		offset := VRAMOffset(addr)
-		return util.LE32(r.VRAM[offset:])
-	case OAM(addr):
-		offset := OAMOffset(addr)
-		return util.LE32(r.OAM[offset:])
 	case GamePak0(addr):
 		offset := GamePak0Offset(addr)
 		return util.LE32(r.GamePak0[offset:])
@@ -84,12 +91,6 @@ func (r *RAM) Set8(addr uint32, b byte) {
 		r.IWRAM[IWRAMOffset(addr)] = b
 	case IO(addr):
 		r.IO[IOOffset(addr)] = b
-	case Palette(addr):
-		r.Palette[PaletteOffset(addr)] = b
-	case VRAM(addr):
-		r.VRAM[VRAMOffset(addr)] = b
-	case OAM(addr):
-		r.OAM[OAMOffset(addr)] = b
 	case GamePak0(addr):
 		r.GamePak0[GamePak0Offset(addr)] = b
 	case GamePak1(addr):

@@ -12,16 +12,16 @@ var (
 func (g *GBA) cycleN(addr uint32) int {
 	switch {
 	case ram.GamePak0(addr):
-		idx := g.RAM.Get(addr) >> 2 & 0b11
+		idx := g.getRAM(ram.WAITCNT) >> 2 & 0b11
 		return wsN[idx] + 1
 	case ram.GamePak1(addr):
-		idx := g.RAM.Get(addr) >> 5 & 0b11
+		idx := g.getRAM(ram.WAITCNT) >> 5 & 0b11
 		return wsN[idx] + 1
 	case ram.GamePak2(addr):
-		idx := g.RAM.Get(addr) >> 8 & 0b11
+		idx := g.getRAM(ram.WAITCNT) >> 8 & 0b11
 		return wsN[idx] + 1
 	case ram.SRAM(addr):
-		idx := g.RAM.Get(addr) & 0b11
+		idx := g.getRAM(ram.WAITCNT) & 0b11
 		return wsN[idx] + 1
 	}
 	return 1
@@ -30,19 +30,21 @@ func (g *GBA) cycleN(addr uint32) int {
 func (g *GBA) cycleS(addr uint32) int {
 	switch {
 	case ram.GamePak0(addr):
-		idx := g.RAM.Get(addr) >> 4 & 0b1
+		idx := g.getRAM(ram.WAITCNT) >> 4 & 0b1
 		return wsS0[idx] + 1
 	case ram.GamePak1(addr):
-		idx := g.RAM.Get(addr) >> 7 & 0b1
+		idx := g.getRAM(ram.WAITCNT) >> 7 & 0b1
 		return wsS1[idx] + 1
 	case ram.GamePak2(addr):
-		idx := g.RAM.Get(addr) >> 10 & 0b1
+		idx := g.getRAM(ram.WAITCNT) >> 10 & 0b1
 		return wsS2[idx] + 1
 	case ram.SRAM(addr):
-		idx := g.RAM.Get(addr) & 0b11
+		idx := g.getRAM(ram.WAITCNT) & 0b11
 		return wsN[idx] + 1
 	}
 	return 1
 }
 
-func (g *GBA) timer(cycle int) {}
+func (g *GBA) timer(cycle int) {
+	g.cycle += cycle
+}

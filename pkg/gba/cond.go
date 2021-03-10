@@ -53,6 +53,6 @@ func (g *GBA) Check(cond Cond) bool {
 	case LE:
 		return g.GetCPSRFlag(flagZ) || (g.GetCPSRFlag(flagN) != g.GetCPSRFlag(flagV))
 	default:
-		return false
+		return true
 	}
 }

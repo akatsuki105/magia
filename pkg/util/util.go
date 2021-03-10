@@ -48,7 +48,25 @@ func ToBool(val interface{}) bool {
 	switch val := val.(type) {
 	case bool:
 		return val
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+	case int:
+		return !(val == 0)
+	case int8:
+		return !(val == 0)
+	case int16:
+		return !(val == 0)
+	case int32:
+		return !(val == 0)
+	case int64:
+		return !(val == 0)
+	case uint:
+		return !(val == 0)
+	case uint8:
+		return !(val == 0)
+	case uint16:
+		return !(val == 0)
+	case uint32:
+		return !(val == 0)
+	case uint64:
 		return !(val == 0)
 	case string:
 		return len(val) > 0
@@ -136,5 +154,17 @@ func LE32(bs []byte) uint32 {
 		return uint32(bs[2])<<16 | uint32(bs[1])<<8 | uint32(bs[0])
 	default:
 		return binary.LittleEndian.Uint32(bs)
+	}
+}
+
+// LE16 reads 16bit little-endian value from byteslice
+func LE16(bs []byte) uint16 {
+	switch len(bs) {
+	case 0:
+		return 0
+	case 1:
+		return uint16(bs[0])
+	default:
+		return binary.LittleEndian.Uint16(bs)
 	}
 }

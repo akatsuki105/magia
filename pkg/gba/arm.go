@@ -1,7 +1,6 @@
 package gba
 
 import (
-	"fmt"
 	"mettaur/pkg/ram"
 	"mettaur/pkg/util"
 )
@@ -15,7 +14,6 @@ const (
 
 func (g *GBA) armStep() {
 	inst := g.armFetch()
-	g.R[15] += 4 // Note that when reading R15, this will usually return a value of PC+4 because of read-ahead (pipelining).
 	g.armExec(inst)
 }
 
@@ -43,7 +41,8 @@ func (g *GBA) armFetch() uint32 {
 		g.timer(5 * 4) // 8bit * 4
 	}
 
-	return g.RAM.Get(pc)
+	g.R[15] += 4 // Note that when reading R15, this will usually return a value of PC+4 because of read-ahead (pipelining).
+	return g.getRAM(pc)
 }
 
 func (g *GBA) armExec(inst uint32) {
@@ -87,13 +86,13 @@ func (g *GBA) armExec(inst uint32) {
 }
 
 func (g *GBA) armSWI(inst uint32) {
-	nn := inst & 0b1111_1111 // ignore 23-8bit on GBA
-	fmt.Println(nn)
+	g.exception(swiVec, SWI)
 }
 
 func (g *GBA) armBranch(inst uint32) {
 	if IsArmBX(inst) {
 		g.armBX(inst)
+		return
 	}
 	if util.Bit(inst, 24) {
 		g.armBL(inst)
@@ -119,10 +118,11 @@ func (g *GBA) armBX(inst uint32) {
 	rn := g.R[inst&0b1111]
 	if util.Bit(rn, 0) {
 		g.SetCPSRFlag(flagT, true)
-		g.R[15] = rn - 1
-		return
+		g.R[15] = rn + 4 - 1
+	} else {
+		g.R[15] = rn + 4
 	}
-	g.R[15] = rn
+	g.timer(2*g.cycleS(g.R[15]) + g.cycleN(g.R[15]))
 }
 
 func (g *GBA) armLDM(inst uint32) {
@@ -133,13 +133,13 @@ func (g *GBA) armLDM(inst uint32) {
 		for rs := 0; rs < 15; rs++ {
 			if util.Bit(inst, rs) {
 				g.R[rn] += 4
-				g.R[rn] = g.RAM.Get(g.R[rs])
+				g.R[rn] = g.getRAM(g.R[rs])
 			}
 		}
 	case !p && u: // IA, pop
 		for rs := 0; rs < 15; rs++ {
 			if util.Bit(inst, rs) {
-				g.R[rn] = g.RAM.Get(g.R[rs])
+				g.R[rn] = g.getRAM(g.R[rs])
 				g.R[rn] += 4
 			}
 		}
@@ -147,13 +147,13 @@ func (g *GBA) armLDM(inst uint32) {
 		for rs := 0; rs < 15; rs++ {
 			if util.Bit(inst, rs) {
 				g.R[rn] -= 4
-				g.R[rn] = g.RAM.Get(g.R[rs])
+				g.R[rn] = g.getRAM(g.R[rs])
 			}
 		}
 	case !p && !u: // DA
 		for rs := 0; rs < 15; rs++ {
 			if util.Bit(inst, rs) {
-				g.R[rn] = g.RAM.Get(g.R[rs])
+				g.R[rn] = g.getRAM(g.R[rs])
 				g.R[rn] -= 4
 			}
 		}
@@ -168,13 +168,13 @@ func (g *GBA) armSTM(inst uint32) {
 		for rs := 0; rs < 15; rs++ {
 			if util.Bit(inst, rs) {
 				g.R[rn] += 4
-				g.RAM.Set32(g.R[rn], g.R[rs])
+				g.setRAM32(g.R[rn], g.R[rs])
 			}
 		}
 	case !p && u: // IA
 		for rs := 0; rs < 15; rs++ {
 			if util.Bit(inst, rs) {
-				g.RAM.Set32(g.R[rn], g.R[rs])
+				g.setRAM32(g.R[rn], g.R[rs])
 				g.R[rn] += 4
 			}
 		}
@@ -182,13 +182,13 @@ func (g *GBA) armSTM(inst uint32) {
 		for rs := 0; rs < 15; rs++ {
 			if util.Bit(inst, rs) {
 				g.R[rn] -= 4
-				g.RAM.Set32(g.R[rn], g.R[rs])
+				g.setRAM32(g.R[rn], g.R[rs])
 			}
 		}
 	case !p && !u: // DA
 		for rs := 0; rs < 15; rs++ {
 			if util.Bit(inst, rs) {
-				g.RAM.Set32(g.R[rn], g.R[rs])
+				g.setRAM32(g.R[rn], g.R[rs])
 				g.R[rn] -= 4
 			}
 		}
@@ -230,7 +230,7 @@ func (g *GBA) armLDR(inst uint32) {
 			addr -= ofs
 		}
 	}
-	g.R[rd] = g.RAM.Get(addr)
+	g.R[rd] = g.getRAM(addr)
 	if byteUnit {
 		g.R[rd] = g.R[rd] & 0xff
 	}
@@ -260,7 +260,7 @@ func (g *GBA) armSTR(inst uint32) {
 			addr -= ofs
 		}
 	}
-	g.RAM.Set32(addr, g.R[rd])
+	g.setRAM32(addr, g.R[rd])
 	if byteUnit {
 		g.R[rd] = g.R[rd] & 0xff
 	}
@@ -278,16 +278,16 @@ func (g *GBA) armSTR(inst uint32) {
 }
 
 func (g *GBA) armALUOp2(inst uint32) uint32 {
-	if util.Bit(inst, 25) {
-		// immediate
-		is := inst >> 7 & 0b1111
-		if isRegister := inst >> 4 & 0b1; util.ToBool(isRegister) {
+	if !util.Bit(inst, 25) {
+		// register
+		is := (inst >> 7) & 0b1111
+		if isRegister := (inst >> 4) & 0b1; util.ToBool(isRegister) {
 			g.timer(1)
-			is = g.R[inst>>8&0b1111]
+			is = g.R[(inst>>8)&0b1111]
 		}
 
 		rm := inst & 0b1111
-		switch shiftType := inst >> 5 & 0b11; shiftType {
+		switch shiftType := (inst >> 5) & 0b11; shiftType {
 		case lsl:
 			return g.armLSL(g.R[rm], is)
 		case lsr:
@@ -299,9 +299,9 @@ func (g *GBA) armALUOp2(inst uint32) uint32 {
 		}
 	}
 
-	// register
+	// immediate
 	op2 := inst & 0b1111_1111
-	is := uint(inst >> 8 & 0b1111)
+	is := uint((inst >> 8) & 0b1111)
 	if is == 0 {
 		is = 1
 	}
@@ -391,7 +391,7 @@ func (g *GBA) armRSB(inst uint32) {
 }
 
 func (g *GBA) armADD(inst uint32) {
-	rd, rn, op2 := inst>>12&0b1111, inst>>16&0b1111, g.armALUOp2(inst)
+	rd, rn, op2 := (inst>>12)&0b1111, (inst>>16)&0b1111, g.armALUOp2(inst)
 	g.R[rd] = g.R[rn] + op2
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
@@ -690,7 +690,7 @@ func (g *GBA) armLDRH(inst uint32) {
 			g.R[rn] = addr
 		}
 	}
-	g.R[rd] = uint32(uint16(g.RAM.Get(addr)))
+	g.R[rd] = uint32(uint16(g.getRAM(addr)))
 	g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
 	if rd == 15 {
 		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]))
@@ -718,7 +718,7 @@ func (g *GBA) armLDRSB(inst uint32) {
 			g.R[rn] = addr
 		}
 	}
-	g.R[rd] = uint32(byte(int32(g.RAM.Get(addr))))
+	g.R[rd] = uint32(byte(int32(g.getRAM(addr))))
 	g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
 	if rd == 15 {
 		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]))
@@ -746,7 +746,7 @@ func (g *GBA) armLDRSH(inst uint32) {
 			g.R[rn] = addr
 		}
 	}
-	g.R[rd] = uint32(int16(int32(g.RAM.Get(addr))))
+	g.R[rd] = uint32(int16(int32(g.getRAM(addr))))
 	g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
 	if rd == 15 {
 		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]))
@@ -774,7 +774,7 @@ func (g *GBA) armSTRH(inst uint32) {
 			g.R[rn] = addr
 		}
 	}
-	g.RAM.Set16(addr, uint16(g.R[rd]))
+	g.setRAM16(addr, uint16(g.R[rd]))
 	g.timer(2 * g.cycleN(g.R[15]))
 }
 
@@ -782,18 +782,8 @@ func (g *GBA) armMRS(inst uint32) {
 	useSpsr := util.ToBool(inst >> 22 & 0b1)
 	rd := (inst >> 12) & 0b1111
 	if useSpsr {
-		switch g.GetOSMode() {
-		case FIQ:
-			g.R[rd] = g.SPSRFiq
-		case IRQ:
-			g.R[rd] = g.SPSRIrq
-		case SWI:
-			g.R[rd] = g.SPSRSvc
-		case ABT:
-			g.R[rd] = g.SPSRAbt
-		case UND:
-			g.R[rd] = g.SPSRUnd
-		}
+		mode := g.getOSMode()
+		g.R[rd] = g.SPSRBank[bankIdx(mode)]
 		return
 	}
 	g.R[rd] = g.CPSR
@@ -815,20 +805,8 @@ func (g *GBA) armMSR(inst uint32) {
 
 	var psr *uint32
 	if useSpsr {
-		switch g.GetOSMode() {
-		case FIQ:
-			psr = &g.SPSRFiq
-		case IRQ:
-			psr = &g.SPSRIrq
-		case SWI:
-			psr = &g.SPSRSvc
-		case ABT:
-			psr = &g.SPSRAbt
-		case UND:
-			psr = &g.SPSRUnd
-		default:
-			psr = &g.CPSR
-		}
+		mode := g.getOSMode()
+		psr = &(g.SPSRBank[bankIdx(mode)])
 	} else {
 		psr = &g.CPSR
 	}

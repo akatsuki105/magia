@@ -7,6 +7,8 @@ import (
 	"mettaur/pkg/gba"
 	"os"
 	"path/filepath"
+
+	"github.com/hajimehoshi/ebiten/v2"
 )
 
 var version string
@@ -65,8 +67,15 @@ func Run() ExitCode {
 		return ExitCodeError
 	}
 
-	emu := gba.New(data)
-	fmt.Println(emu.CartHeader.Title)
+	emu := &Emulator{
+		gba: gba.New(data),
+	}
+	ebiten.SetWindowResizable(true)
+	ebiten.SetWindowTitle(title)
+	ebiten.SetWindowSize(240, 160)
+	if err := ebiten.RunGame(emu); err != nil {
+		fmt.Fprintf(os.Stderr, "crash in emulation: %s\n", err)
+	}
 
 	return ExitCodeOK
 }
@@ -88,4 +97,19 @@ func readROM(path string) ([]byte, error) {
 		return []byte{}, errors.New("fail to read file")
 	}
 	return bytes, nil
+}
+
+type Emulator struct {
+	gba *gba.GBA
+}
+
+func (e *Emulator) Update() error {
+	e.gba.Update()
+	return nil
+}
+func (e *Emulator) Draw(screen *ebiten.Image) {
+	screen = ebiten.NewImageFromImage(e.gba.Draw())
+}
+func (e *Emulator) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
+	return 240, 160
 }

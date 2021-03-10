@@ -1,7 +1,5 @@
 package gba
 
-import "mettaur/pkg/util"
-
 const (
 	flagN = 31
 	flagZ = 30
@@ -29,11 +27,36 @@ const (
 
 // Reg represents register
 type Reg struct {
-	R                                                 [16]uint32
-	R8Fiq, R9Fiq, R10Fiq, R11Fiq, R12Fiq              uint32
-	R13Fiq, R13Svc, R13Abt, R13Irq, R13Und            uint32
-	R14Fiq, R14Svc, R14Abt, R14Irq, R14Und            uint32
-	CPSR, SPSRFiq, SPSRSvc, SPSRAbt, SPSRIrq, SPSRUnd uint32
+	R                                    [16]uint32
+	R8Fiq, R9Fiq, R10Fiq, R11Fiq, R12Fiq uint32
+	R13Bank                              [5]uint32 // fiq, svc, abt, irq, und
+	R14Bank                              [5]uint32 // fiq, svc, abt, irq, und
+	CPSR                                 uint32
+	SPSRBank                             [5]uint32 // fiq, svc, abt, irq, und
+}
+
+func NewReg() *Reg {
+	r := [16]uint32{}
+	r[15] = 0x08000000
+	return &Reg{
+		R: r,
+	}
+}
+
+func bankIdx(mode Mode) int {
+	switch mode {
+	case FIQ:
+		return 0
+	case IRQ:
+		return 3
+	case SWI:
+		return 1
+	case ABT:
+		return 2
+	case UND:
+		return 4
+	}
+	return -1
 }
 
 // SetCPSRFlag sets CPSR flag
@@ -41,7 +64,11 @@ func (r *Reg) SetCPSRFlag(idx int, flag bool) {
 	if idx < 0 || idx > 31 {
 		return
 	}
-	r.CPSR = r.CPSR | (uint32(util.BoolToInt(flag)) << idx)
+	if flag {
+		r.CPSR = r.CPSR | (1 << idx)
+	} else {
+		r.CPSR = r.CPSR & ^(1 << idx)
+	}
 }
 
 // GetCPSRFlag get CPSR flag
@@ -49,10 +76,76 @@ func (r *Reg) GetCPSRFlag(idx int) bool {
 	if idx < 0 || idx > 31 {
 		return false
 	}
-	return util.ToBool((r.CPSR >> idx) & 1)
+	return ((r.CPSR >> idx) & 1) == 1
 }
 
 // GetOSMode get Processor mode
-func (r *Reg) GetOSMode() Mode {
+func (r *Reg) getOSMode() Mode {
 	return Mode(r.CPSR & 0b11111)
+}
+
+// SetOSMode set Processor mode
+func (r *Reg) setOSMode(mode Mode) {
+	r.saveReg(mode)
+	r.CPSR = (r.CPSR & 0b1111_1111_1111_1111_1111_1111_1110_0000) | uint32(mode)
+}
+
+func (r *Reg) saveReg(mode Mode) {
+	switch mode {
+	case FIQ:
+		r.R8Fiq = r.R[8]
+		r.R9Fiq = r.R[9]
+		r.R10Fiq = r.R[10]
+		r.R11Fiq = r.R[11]
+		r.R12Fiq = r.R[12]
+		r.R13Bank[0] = r.R[13]
+		r.R14Bank[0] = r.R[14]
+		r.SPSRBank[0] = r.CPSR
+	case IRQ:
+		r.R13Bank[3] = r.R[13]
+		r.R14Bank[3] = r.R[14]
+		r.SPSRBank[3] = r.CPSR
+	case SWI:
+		r.R13Bank[1] = r.R[13]
+		r.R14Bank[1] = r.R[14]
+		r.SPSRBank[1] = r.CPSR
+	case ABT:
+		r.R13Bank[2] = r.R[13]
+		r.R14Bank[2] = r.R[14]
+		r.SPSRBank[2] = r.CPSR
+	case UND:
+		r.R13Bank[4] = r.R[13]
+		r.R14Bank[4] = r.R[14]
+		r.SPSRBank[4] = r.CPSR
+	}
+}
+
+func (r *Reg) restoreReg(mode Mode) {
+	switch mode {
+	case FIQ:
+		r.R[8] = r.R8Fiq
+		r.R[9] = r.R9Fiq
+		r.R[10] = r.R10Fiq
+		r.R[11] = r.R11Fiq
+		r.R[12] = r.R12Fiq
+		r.R[13] = r.R13Bank[0]
+		r.R[14] = r.R14Bank[0]
+		r.CPSR = r.SPSRBank[0]
+	case IRQ:
+		r.R[13] = r.R13Bank[3]
+		r.R[14] = r.R14Bank[3]
+		r.CPSR = r.SPSRBank[3]
+	case SWI:
+		r.R[13] = r.R13Bank[1]
+		r.R[14] = r.R14Bank[1]
+		r.CPSR = r.SPSRBank[1]
+	case ABT:
+		r.R[13] = r.R13Bank[2]
+		r.R[14] = r.R14Bank[2]
+		r.CPSR = r.SPSRBank[2]
+	case UND:
+		r.R[13] = r.R13Bank[4]
+		r.R[14] = r.R14Bank[4]
+		r.CPSR = r.SPSRBank[4]
+	}
 }
