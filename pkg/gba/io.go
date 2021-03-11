@@ -17,6 +17,8 @@ var (
 
 func (g *GBA) getRAM(addr uint32) uint32 {
 	switch {
+	case gpu.IsIO(addr):
+		return util.LE32(g.GPU.IO[(addr - 0x0400_0000):])
 	case ram.Palette(addr):
 		offset := ram.PaletteOffset(addr)
 		return util.LE32(g.GPU.Palette[offset:])

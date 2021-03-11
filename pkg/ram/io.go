@@ -43,6 +43,30 @@ const (
 	BLDY     = base + 0x54
 )
 
+// DMA Transfer
+const (
+	DMA0SAD = base + 0xb0
+	DMA0DAD = base + 0xb4
+	DMA0CNT = base + 0xb8
+	DMA1SAD = base + 0xbc
+	DMA1DAD = base + 0xc0
+	DMA1CNT = base + 0xc4
+	DMA2SAD = base + 0xc8
+	DMA2DAD = base + 0xcc
+	DMA2CNT = base + 0xd0
+	DMA3SAD = base + 0xd4
+	DMA3DAD = base + 0xd8
+	DMA3CNT = base + 0xdc
+)
+
+// Timer
+const (
+	TM0CNT = base + 0x100
+	TM1CNT = base + 0x104
+	TM2CNT = base + 0x108
+	TM3CNT = base + 0x10c
+)
+
 // System IO
 const (
 	IE      = base + 0x200

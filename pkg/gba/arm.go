@@ -1,8 +1,10 @@
 package gba
 
 import (
+	"fmt"
 	"mettaur/pkg/ram"
 	"mettaur/pkg/util"
+	"os"
 )
 
 const (
@@ -46,6 +48,7 @@ func (g *GBA) armFetch() uint32 {
 }
 
 func (g *GBA) armExec(inst uint32) {
+	// g.armInst(inst)
 	cond := Cond(inst >> 28)
 	if g.Check(cond) {
 		switch {
@@ -79,6 +82,8 @@ func (g *GBA) armExec(inst uint32) {
 			g.armMPY(inst)
 		case IsArmALU(inst):
 			g.armALU(inst)
+		default:
+			fmt.Fprintf(os.Stderr, "invalid opcode(0x%04x) in 0x%04x\n", inst, g.PC)
 		}
 	} else {
 		g.timer(g.cycleS(g.PC))
@@ -86,6 +91,7 @@ func (g *GBA) armExec(inst uint32) {
 }
 
 func (g *GBA) armSWI(inst uint32) {
+	fmt.Printf("exception occurred: SWI %02x\n", byte(inst>>16))
 	g.exception(swiVec, SWI)
 }
 
@@ -102,25 +108,38 @@ func (g *GBA) armBranch(inst uint32) {
 }
 
 func (g *GBA) armB(inst uint32) {
-	nn := inst & 0b1111_1111_1111_1111_1111_1111
-	g.R[15] = g.PC + 8 + nn*4
+	nn := int32(inst)
+	nn <<= 8
+	nn >>= 8
+
+	if nn >= 0 {
+		g.R[15] = g.PC + 8 + uint32(nn)*4
+	} else {
+		g.R[15] = g.PC + 8 - uint32(-nn)*4
+	}
 	g.timer(2*g.cycleS(g.R[15]) + g.cycleN(g.R[15]))
 }
 
 func (g *GBA) armBL(inst uint32) {
-	nn := inst & 0b1111_1111_1111_1111_1111_1111
+	nn := int32(inst)
+	nn <<= 8
+	nn >>= 8
 	g.R[14] = g.PC + 4
-	g.R[15] = g.PC + 8 + nn*4
+	if nn >= 0 {
+		g.R[15] = g.PC + 8 + uint32(nn)*4
+	} else {
+		g.R[15] = g.PC + 8 - uint32(-nn)*4
+	}
 	g.timer(2*g.cycleS(g.R[15]) + g.cycleN(g.R[15]))
 }
 
 func (g *GBA) armBX(inst uint32) {
-	rn := g.R[inst&0b1111]
-	if util.Bit(rn, 0) {
+	rnval := g.R[inst&0b1111]
+	if util.Bit(rnval, 0) {
 		g.SetCPSRFlag(flagT, true)
-		g.R[15] = rn + 4 - 1
+		g.R[15] = rnval - 1
 	} else {
-		g.R[15] = rn + 4
+		g.R[15] = rnval
 	}
 	g.timer(2*g.cycleS(g.R[15]) + g.cycleN(g.R[15]))
 }
@@ -133,13 +152,13 @@ func (g *GBA) armLDM(inst uint32) {
 		for rs := 0; rs < 15; rs++ {
 			if util.Bit(inst, rs) {
 				g.R[rn] += 4
-				g.R[rn] = g.getRAM(g.R[rs])
+				g.R[rs] = g.getRAM(g.R[rn])
 			}
 		}
 	case !p && u: // IA, pop
-		for rs := 0; rs < 15; rs++ {
+		for rs := 15; rs >= 0; rs-- {
 			if util.Bit(inst, rs) {
-				g.R[rn] = g.getRAM(g.R[rs])
+				g.R[rs] = g.getRAM(g.R[rn])
 				g.R[rn] += 4
 			}
 		}
@@ -147,13 +166,13 @@ func (g *GBA) armLDM(inst uint32) {
 		for rs := 0; rs < 15; rs++ {
 			if util.Bit(inst, rs) {
 				g.R[rn] -= 4
-				g.R[rn] = g.getRAM(g.R[rs])
+				g.R[rs] = g.getRAM(g.R[rn])
 			}
 		}
 	case !p && !u: // DA
 		for rs := 0; rs < 15; rs++ {
 			if util.Bit(inst, rs) {
-				g.R[rn] = g.getRAM(g.R[rs])
+				g.R[rs] = g.getRAM(g.R[rn])
 				g.R[rn] -= 4
 			}
 		}
@@ -198,7 +217,7 @@ func (g *GBA) armSTM(inst uint32) {
 func (g *GBA) armRegShiftOffset(inst uint32) uint32 {
 	ofs := uint32(0)
 	if util.Bit(inst, 25) {
-		is := inst >> 7 & 0b11111 // I = 1
+		is := inst >> 7 & 0b11111 // I = 1 shift reg
 		shiftType := inst >> 5 & 0b11
 		rm := inst & 0b1111
 		switch shiftType {
@@ -212,14 +231,14 @@ func (g *GBA) armRegShiftOffset(inst uint32) uint32 {
 			ofs = g.armROR(g.R[rm], is)
 		}
 	} else {
-		ofs = inst & 0b1111_1111_1111 // I = 0
+		ofs = inst & 0b1111_1111_1111 // I = 0 immediate
 	}
 	return ofs
 }
 
 func (g *GBA) armLDR(inst uint32) {
 	pre, plus, byteUnit := util.Bit(inst, 24), util.Bit(inst, 23), util.Bit(inst, 22)
-	rn, rd := inst>>16&0b1111, inst>>12&0b1111
+	rn, rd := (inst>>16)&0b1111, (inst>>12)&0b1111
 	ofs := g.armRegShiftOffset(inst)
 
 	addr := g.R[rn]
@@ -249,7 +268,7 @@ func (g *GBA) armLDR(inst uint32) {
 
 func (g *GBA) armSTR(inst uint32) {
 	pre, plus, byteUnit := util.Bit(inst, 24), util.Bit(inst, 23), util.Bit(inst, 22)
-	rn, rd := inst>>16&0b1111, inst>>12&0b1111
+	rn, rd := (inst>>16)&0b1111, (inst>>12)&0b1111
 	ofs := g.armRegShiftOffset(inst)
 
 	addr := g.R[rn]
@@ -281,21 +300,29 @@ func (g *GBA) armALUOp2(inst uint32) uint32 {
 	if !util.Bit(inst, 25) {
 		// register
 		is := (inst >> 7) & 0b1111
+
+		salt := uint32(0)
+		rm := inst & 0b1111
+		if rm == 15 {
+			salt = 8
+		}
+
 		if isRegister := (inst >> 4) & 0b1; util.ToBool(isRegister) {
 			g.timer(1)
 			is = g.R[(inst>>8)&0b1111]
+			if rm == 15 {
+				salt = 12
+			}
 		}
-
-		rm := inst & 0b1111
 		switch shiftType := (inst >> 5) & 0b11; shiftType {
 		case lsl:
-			return g.armLSL(g.R[rm], is)
+			return g.armLSL(g.R[rm]+salt, is)
 		case lsr:
-			return g.armLSR(g.R[rm], is)
+			return g.armLSR(g.R[rm]+salt, is)
 		case asr:
-			return g.armASR(g.R[rm], is)
+			return g.armASR(g.R[rm]+salt, is)
 		case ror:
-			return g.armROR(g.R[rm], is)
+			return g.armROR(g.R[rm]+salt, is)
 		}
 	}
 
@@ -307,6 +334,17 @@ func (g *GBA) armALUOp2(inst uint32) uint32 {
 	}
 	util.ROR(op2, is)
 	return op2
+}
+
+func (g *GBA) armALURn(inst uint32) uint32 {
+	rn := inst >> 16 & 0b1111
+	if rn == 15 {
+		if !util.Bit(inst, 25) && util.Bit(inst, 4) {
+			return g.PC + 12
+		}
+		return g.PC + 8
+	}
+	return g.R[rn]
 }
 
 func (g *GBA) armALU(inst uint32) {
@@ -352,8 +390,8 @@ func (g *GBA) armALU(inst uint32) {
 }
 
 func (g *GBA) armAND(inst uint32) {
-	rd, rn, op2 := inst>>12&0b1111, inst>>16&0b1111, g.armALUOp2(inst)
-	g.R[rd] = g.R[rn] & op2
+	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
+	g.R[rd] = rnval & op2
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
@@ -361,8 +399,8 @@ func (g *GBA) armAND(inst uint32) {
 }
 
 func (g *GBA) armEOR(inst uint32) {
-	rd, rn, op2 := inst>>12&0b1111, inst>>16&0b1111, g.armALUOp2(inst)
-	g.R[rd] = g.R[rn] ^ op2
+	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
+	g.R[rd] = rnval ^ op2
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
@@ -370,82 +408,81 @@ func (g *GBA) armEOR(inst uint32) {
 }
 
 func (g *GBA) armSUB(inst uint32) {
-	rd, rn, op2 := inst>>12&0b1111, inst>>16&0b1111, g.armALUOp2(inst)
-	g.R[rd] = g.R[rn] - op2
+	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
+	g.R[rd] = rnval - op2
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-		g.SetCPSRFlag(flagV, util.SubV(g.R[rn], op2, g.R[rd]))
+		g.SetCPSRFlag(flagV, util.SubV(rnval, op2, g.R[rd]))
 
 	}
 }
 
 func (g *GBA) armRSB(inst uint32) {
-	rd, rn, op2 := inst>>12&0b1111, inst>>16&0b1111, g.armALUOp2(inst)
-	g.R[rd] = op2 - g.R[rn]
+	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
+	g.R[rd] = op2 - rnval
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-		g.SetCPSRFlag(flagV, util.SubV(op2, g.R[rn], g.R[rd]))
+		g.SetCPSRFlag(flagV, util.SubV(op2, rnval, g.R[rd]))
 	}
 }
 
 func (g *GBA) armADD(inst uint32) {
-	rd, rn, op2 := (inst>>12)&0b1111, (inst>>16)&0b1111, g.armALUOp2(inst)
-	g.R[rd] = g.R[rn] + op2
+	rd, rnval, op2 := (inst>>12)&0b1111, g.armALURn(inst), g.armALUOp2(inst)
+	g.R[rd] = rnval + op2
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-		g.SetCPSRFlag(flagV, util.AddV(g.R[rn], op2, g.R[rd]))
-
+		g.SetCPSRFlag(flagV, util.AddV(rnval, op2, g.R[rd]))
 	}
 }
 
 func (g *GBA) armADC(inst uint32) {
-	rd, rn, op2 := inst>>12&0b1111, inst>>16&0b1111, g.armALUOp2(inst)
+	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
 	carry := uint32(0)
 	if g.GetCPSRFlag(flagC) {
 		carry = 1
 	}
-	g.R[rd] = g.R[rn] + op2 + carry
+	g.R[rd] = rnval + op2 + carry
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-		g.SetCPSRFlag(flagV, util.AddV(g.R[rn], op2, g.R[rd]))
+		g.SetCPSRFlag(flagV, util.AddV(rnval, op2, g.R[rd]))
 	}
 }
 
 func (g *GBA) armSBC(inst uint32) {
-	rd, rn, op2 := inst>>12&0b1111, inst>>16&0b1111, g.armALUOp2(inst)
+	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
 	carry := uint32(0)
 	if g.GetCPSRFlag(flagC) {
 		carry = 1
 	}
-	g.R[rd] = g.R[rn] - op2 + carry - 1
+	g.R[rd] = rnval - op2 + carry - 1
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-		g.SetCPSRFlag(flagV, util.SubV(g.R[rn], op2, g.R[rd]))
+		g.SetCPSRFlag(flagV, util.SubV(rnval, op2, g.R[rd]))
 	}
 }
 
 func (g *GBA) armRSC(inst uint32) {
-	rd, rn, op2 := inst>>12&0b1111, inst>>16&0b1111, g.armALUOp2(inst)
+	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
 	carry := uint32(0)
 	if g.GetCPSRFlag(flagC) {
 		carry = 1
 	}
-	g.R[rd] = op2 - g.R[rn] + carry - 1
+	g.R[rd] = op2 - rnval + carry - 1
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-		g.SetCPSRFlag(flagV, util.SubV(op2, g.R[rn], g.R[rd]))
+		g.SetCPSRFlag(flagV, util.SubV(op2, rnval, g.R[rd]))
 	}
 }
 
 func (g *GBA) armTST(inst uint32) {
-	rn, op2 := inst>>16&0b1111, g.armALUOp2(inst)
-	result := g.R[rn] & op2
+	rnval, op2 := g.armALURn(inst), g.armALUOp2(inst)
+	result := rnval & op2
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, result == 0)
 		g.SetCPSRFlag(flagN, util.Bit(result, 31))
@@ -453,8 +490,8 @@ func (g *GBA) armTST(inst uint32) {
 }
 
 func (g *GBA) armTEQ(inst uint32) {
-	rn, op2 := inst>>16&0b1111, g.armALUOp2(inst)
-	result := g.R[rn] ^ op2
+	rnval, op2 := g.armALURn(inst), g.armALUOp2(inst)
+	result := rnval ^ op2
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, result == 0)
 		g.SetCPSRFlag(flagN, util.Bit(result, 31))
@@ -462,28 +499,28 @@ func (g *GBA) armTEQ(inst uint32) {
 }
 
 func (g *GBA) armCMP(inst uint32) {
-	rn, op2 := inst>>16&0b1111, g.armALUOp2(inst)
-	result := g.R[rn] - op2
+	rnval, op2 := g.armALURn(inst), g.armALUOp2(inst)
+	result := rnval - op2
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, result == 0)
 		g.SetCPSRFlag(flagN, util.Bit(result, 31))
-		g.SetCPSRFlag(flagV, util.SubV(g.R[rn], op2, result))
+		g.SetCPSRFlag(flagV, util.SubV(rnval, op2, result))
 	}
 }
 
 func (g *GBA) armCMN(inst uint32) {
-	rn, op2 := inst>>16&0b1111, g.armALUOp2(inst)
-	result := g.R[rn] + op2
+	rnval, op2 := g.armALURn(inst), g.armALUOp2(inst)
+	result := rnval + op2
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, result == 0)
 		g.SetCPSRFlag(flagN, util.Bit(result, 31))
-		g.SetCPSRFlag(flagV, util.AddV(g.R[rn], op2, result))
+		g.SetCPSRFlag(flagV, util.AddV(rnval, op2, result))
 	}
 }
 
 func (g *GBA) armORR(inst uint32) {
-	rd, rn, op2 := inst>>12&0b1111, inst>>16&0b1111, g.armALUOp2(inst)
-	g.R[rd] = g.R[rn] | op2
+	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
+	g.R[rd] = rnval | op2
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
@@ -491,17 +528,22 @@ func (g *GBA) armORR(inst uint32) {
 }
 
 func (g *GBA) armMOV(inst uint32) {
-	rd, op2 := inst>>12&0b1111, g.armALUOp2(inst)
+	s := (inst>>20)&0b1 != 0
+	rd, op2 := (inst>>12)&0b1111, g.armALUOp2(inst)
 	g.R[rd] = op2
-	if s := inst>>20&0b1 != 0; s {
+	if s {
+		if rd == 15 {
+			g.restoreReg(g.getOSMode())
+			return
+		}
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
 	}
 }
 
 func (g *GBA) armBIC(inst uint32) {
-	rd, rn, op2 := inst>>12&0b1111, inst>>16&0b1111, g.armALUOp2(inst)
-	g.R[rd] = g.R[rn] & ^op2
+	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
+	g.R[rd] = rnval & ^op2
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
@@ -794,13 +836,13 @@ func (g *GBA) armMSR(inst uint32) {
 	useSpsr := util.ToBool(inst >> 22 & 0b1)
 	value := uint32(0)
 	if util.Bit(inst, 25) {
-		// immediate Psr[field] = Rm
-		rm := inst & 0b1111
-		value = g.R[rm]
-	} else {
 		// register Psr[field] = Imm
 		is, imm := ((inst>>8)&0b1111)*2, inst&0b1111_1111
 		value = util.ROR(imm, uint(is))
+	} else {
+		// immediate Psr[field] = Rm
+		rm := inst & 0b1111
+		value = g.R[rm]
 	}
 
 	var psr *uint32

@@ -40,6 +40,7 @@ func (g *GBA) thumbFetch() uint16 {
 }
 
 func (g *GBA) thumbExec(inst uint16) {
+	// g.thumbInst(inst)
 	switch {
 	case IsThumbShift(inst):
 		g.thumbShift(inst)
@@ -82,7 +83,7 @@ func (g *GBA) thumbExec(inst uint16) {
 	case IsThumbLinkBranch2(inst):
 		g.thumbLinkBranch2(inst)
 	default:
-		fmt.Fprintf(os.Stderr, "invalid opcode: %02x\n", inst)
+		fmt.Fprintf(os.Stderr, "invalid opcode(0x%02x) in 0x%04x\n", inst, g.PC)
 	}
 }
 
@@ -248,6 +249,13 @@ func (g *GBA) thumbALU(inst uint16) {
 	g.timer(g.cycleS(g.R[15]))
 }
 
+func (g *GBA) thumbHiRegisterBXOperand(r uint16) uint32 {
+	if r == 15 {
+		return g.PC + 4
+	}
+	return g.R[r]
+}
+
 func (g *GBA) thumbHiRegisterBX(inst uint16) {
 	rs, rd := (inst>>3)&0b111, inst&0b111
 	if util.Bit(inst, 7) {
@@ -256,27 +264,28 @@ func (g *GBA) thumbHiRegisterBX(inst uint16) {
 	if util.Bit(inst, 6) {
 		rs += 8
 	}
+	rsval, rdval := g.thumbHiRegisterBXOperand(rs), g.thumbHiRegisterBXOperand(rd)
 
 	opcode := (inst >> 8) & 0b11
 	switch opcode {
 	case 0:
-		g.R[rd] = g.R[rd] + g.R[rs] // ADD Rd,Rs(Rd = Rd+Rs)
+		g.R[rd] = rdval + rsval // ADD Rd,Rs(Rd = Rd+Rs)
 	case 1:
-		result := uint64(g.R[rd]) - uint64(g.R[rs]) // CMP Rd,Rs(Void = Rd-Rs)
+		result := uint64(rdval) - uint64(rsval) // CMP Rd,Rs(Void = Rd-Rs)
 		g.SetCPSRFlag(flagN, util.Bit(result, 31))
 		g.SetCPSRFlag(flagZ, result == 0)
 		g.SetCPSRFlag(flagC, result < 0x1_0000_0000)
-		g.SetCPSRFlag(flagV, util.SubV(g.R[rd], g.R[rs], uint32(result)))
+		g.SetCPSRFlag(flagV, util.SubV(rdval, rsval, uint32(result)))
 	case 2:
-		g.R[rd] = g.R[rs] // MOV Rd,Rs(Rd=Rs)
+		g.R[rd] = rsval // MOV Rd,Rs(Rd=Rs)
 	case 3:
 		// BX Rs(PC = Rs)
 		rd = 15
-		if util.Bit(g.R[rs], 0) {
-			g.R[15] = g.R[rs] - 1
+		if util.Bit(rsval, 0) {
+			g.R[15] = rsval - 1
 		} else {
 			g.SetCPSRFlag(flagT, false) // switch to ARM
-			g.R[15] = util.Align4(g.R[rs])
+			g.R[15] = util.Align4(rsval)
 		}
 	}
 
@@ -405,7 +414,7 @@ func (g *GBA) thumbStack(inst uint16) {
 		g.timer((n-1)*g.cycleS(g.R[15]) + 2*g.cycleN(g.R[15]))
 	case 1:
 		n := 0
-		for i := 0; i < 8; i++ {
+		for i := 7; i >= 0; i-- {
 			if util.ToBool(rlist & (0b1 << i)) {
 				g.R[i] = g.getRAM(g.R[13]) // POP
 				g.R[13] += 4
@@ -490,6 +499,7 @@ func (g *GBA) thumbCondBranch(inst uint16) {
 }
 
 func (g *GBA) thumbSWI(inst uint16) {
+	fmt.Printf("exception occurred: SWI %02x\n", byte(inst))
 	g.exception(swiVec, SWI)
 }
 

@@ -149,3 +149,21 @@ func (r *Reg) restoreReg(mode Mode) {
 		r.CPSR = r.SPSRBank[4]
 	}
 }
+
+func (m Mode) String() string {
+	switch m {
+	case FIQ:
+		return "FIQ"
+	case IRQ:
+		return "IRQ"
+	case SWI:
+		return "SWI"
+	case ABT:
+		return "ABT"
+	case UND:
+		return "UND"
+	case SYS:
+		return "SYS"
+	}
+	return "USR"
+}

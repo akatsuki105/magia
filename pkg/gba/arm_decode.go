@@ -124,9 +124,10 @@ func IsArmStack(inst uint32) bool {
 // IsArmMRS returns instruction is ???
 // 27-23: 00010
 func IsArmMRS(inst uint32) bool {
-	cond1 := !util.Bit(inst, 27) && !util.Bit(inst, 26) && !util.Bit(inst, 25) // 000
-	cond2 := util.Bit(inst, 24) && !util.Bit(inst, 23)                         // 10
-	return cond1 && cond2 && !util.Bit(inst, 21)
+	cond1 := !util.Bit(inst, 27) && !util.Bit(inst, 26) && !util.Bit(inst, 25) && util.Bit(inst, 24) && !util.Bit(inst, 23) // 00010
+	cond2 := util.Bit(inst, 19) && util.Bit(inst, 18) && util.Bit(inst, 17) && util.Bit(inst, 16)                           // 1111
+	cond3 := (inst & 0b1111_1111_1111) == 0
+	return cond1 && cond2 && cond3 && !util.Bit(inst, 21)
 }
 
 // IsArmMSR returns instruction is ???

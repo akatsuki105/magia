@@ -75,12 +75,13 @@ func (g *GBA) step() {
 }
 
 func (g *GBA) exception(addr uint32, mode Mode) {
+	// fmt.Println("exception occurred: ", mode)
 	nn := uint32(4)
 	if g.GetCPSRFlag(flagT) {
 		nn = 2
 	}
-	g.R[14] = g.PC + nn
 	g.setOSMode(mode)
+	g.R[14] = g.PC + nn
 	g.SetCPSRFlag(flagT, false)
 	g.SetCPSRFlag(flagI, true)
 	switch addr & 0xff {
@@ -101,12 +102,12 @@ func (g *GBA) Update() {
 	if util.Bit(dispstat, 3) {
 		g.triggerIRQ(irqVBlank)
 	}
-	dispstat = dispstat | 1
-	g.setRAM16(ram.DISPSTAT, dispstat)
+	g.GPU.SetVBlank(true)
 
 	for y := 0; y < 68; y++ {
 		g.scanline()
 	}
+	g.GPU.SetVBlank(false)
 
 	g.frame++
 }
@@ -123,12 +124,18 @@ func (g *GBA) scanline() {
 		if util.Bit(dispstat, 4) {
 			g.triggerIRQ(irqHBlank)
 		}
-		dispstat = dispstat | 2
-		g.setRAM16(ram.DISPSTAT, dispstat)
+		g.GPU.SetHBlank(true)
 	}
 
 	for g.cycle <= 68*4 {
 		g.step()
+	}
+	g.GPU.SetHBlank(false)
+	vCount := g.GPU.IncrementVCount()
+	if vCount == byte(g.getRAM(ram.DISPSTAT+1)) {
+		if util.Bit(dispstat, 5) {
+			g.triggerIRQ(irqVCount)
+		}
 	}
 }
 
