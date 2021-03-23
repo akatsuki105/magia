@@ -67,6 +67,12 @@ const (
 	TM3CNT = base + 0x10c
 )
 
+// Keypad Input
+const (
+	KEYINPUT = base + 0x130
+	KEYCNT   = base + 0x132
+)
+
 // System IO
 const (
 	IE      = base + 0x200

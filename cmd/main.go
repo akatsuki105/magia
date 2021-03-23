@@ -70,6 +70,8 @@ func Run() ExitCode {
 	emu := &Emulator{
 		gba: gba.New(data),
 	}
+	emu.gba.SoftReset()
+
 	ebiten.SetWindowResizable(true)
 	ebiten.SetWindowTitle(title)
 	ebiten.SetWindowSize(240, 160)
@@ -77,6 +79,7 @@ func Run() ExitCode {
 		fmt.Fprintf(os.Stderr, "crash in emulation: %s\n", err)
 	}
 
+	emu.gba.Exit()
 	return ExitCodeOK
 }
 
@@ -108,7 +111,7 @@ func (e *Emulator) Update() error {
 	return nil
 }
 func (e *Emulator) Draw(screen *ebiten.Image) {
-	screen = ebiten.NewImageFromImage(e.gba.Draw())
+	screen.DrawImage(ebiten.NewImageFromImage(e.gba.Draw()), nil)
 }
 func (e *Emulator) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
 	return 240, 160

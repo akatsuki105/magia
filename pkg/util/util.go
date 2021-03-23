@@ -3,6 +3,8 @@ package util
 import (
 	"encoding/binary"
 	"fmt"
+	"image"
+	"image/color"
 	"reflect"
 	"strings"
 )
@@ -124,13 +126,21 @@ func Bit(val interface{}, idx int) bool {
 	return false
 }
 
+func AddC(res uint64) bool {
+	return res > 0xffffffff
+}
+
+func SubC(res uint64) bool {
+	return res < 0x100000000
+}
+
 func AddV(lhs, rhs, res uint32) bool {
-	v := ^(lhs ^ rhs) & (lhs ^ res) & 0x80000000
-	return ToBool(v)
+	v := ^(lhs ^ rhs) & (lhs ^ res) & 0x8000_0000
+	return v != 0
 }
 
 func SubV(lhs, rhs, res uint32) bool {
-	v := (lhs ^ rhs) & (lhs ^ res) & 0x80000000
+	v := (lhs ^ rhs) & (lhs ^ res) & 0x8000_0000
 	return ToBool(v)
 }
 
@@ -166,5 +176,13 @@ func LE16(bs []byte) uint16 {
 		return uint16(bs[0])
 	default:
 		return binary.LittleEndian.Uint16(bs)
+	}
+}
+
+func FillImage(i *image.RGBA, c color.RGBA) {
+	for y := 0; y < 160; y++ {
+		for x := 0; x < 240; x++ {
+			i.Set(x, y, c)
+		}
 	}
 }

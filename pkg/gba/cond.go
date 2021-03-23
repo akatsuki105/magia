@@ -19,7 +19,47 @@ const (
 	LT             // <
 	GT             // >
 	LE             // <=
+	AL
+	NV
 )
+
+func (c Cond) String() string {
+	switch c {
+	case EQ:
+		return "eq"
+	case NE:
+		return "ne"
+	case CS:
+		return "cs"
+	case CC:
+		return "cc"
+	case MI:
+		return "mi"
+	case PL:
+		return "pl"
+	case VS:
+		return "vs"
+	case VC:
+		return "vc"
+	case HI:
+		return "hi"
+	case LS:
+		return "ls"
+	case GE:
+		return "ge"
+	case LT:
+		return "lt"
+	case GT:
+		return "gt"
+	case LE:
+		return "le"
+	case AL:
+		return "al"
+	case NV:
+		return "nv"
+	}
+	return "unk"
+}
 
 // Check returns if instruction condition is ok
 func (g *GBA) Check(cond Cond) bool {
@@ -52,7 +92,11 @@ func (g *GBA) Check(cond Cond) bool {
 		return !g.GetCPSRFlag(flagZ) && (g.GetCPSRFlag(flagN) == g.GetCPSRFlag(flagV))
 	case LE:
 		return g.GetCPSRFlag(flagZ) || (g.GetCPSRFlag(flagN) != g.GetCPSRFlag(flagV))
-	default:
+	case AL:
 		return true
+	case NV:
+		return false
+	default:
+		return false
 	}
 }

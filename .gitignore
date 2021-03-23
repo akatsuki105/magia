@@ -3,3 +3,4 @@ mettaur
 build
 .DS_Store
 rom
+*.log

@@ -20,7 +20,7 @@ type RAM struct {
 	BIOS  [16 * kb]byte
 	EWRAM [256 * kb]byte
 	IWRAM [32 * kb]byte
-	IO    [1 * kb]byte
+	IO    [2 * kb]byte
 	GamePak
 }
 

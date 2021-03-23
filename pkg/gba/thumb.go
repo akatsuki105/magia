@@ -2,45 +2,24 @@ package gba
 
 import (
 	"fmt"
-	"mettaur/pkg/ram"
 	"mettaur/pkg/util"
 	"os"
 )
 
 func (g *GBA) thumbStep() {
-	inst := g.thumbFetch()
-	g.thumbExec(inst)
-}
-
-func (g *GBA) thumbFetch() uint16 {
-	pc := g.R[15]
-	g.PC = pc
-
-	switch {
-	case ram.BIOS(pc) || ram.IWRAM(pc) || ram.IO(pc) || ram.OAM(pc):
-		g.timer(1)
-	case ram.Palette(pc) || ram.VRAM(pc):
-		g.timer(1)
-	case ram.EWRAM(pc):
-		g.timer(3)
-	case ram.GamePak0(pc) || ram.GamePak1(pc) || ram.GamePak2(pc):
-		if g.lastAddr+2 == pc {
-			// sequential
-			g.timer(g.cycleS(pc))
-		} else {
-			// non-sequential
-			g.timer(g.cycleN(pc))
-		}
-	case ram.SRAM(pc):
-		g.timer(5 * 2) // 8bit * 2
+	g.pipe.inst[1] = Inst{
+		inst: uint32(g.getRAM16(g.R[15], true)),
+		loc:  g.R[15],
 	}
-
-	g.R[15] += 2 // Note that when reading R15, this will usually return a value of PC+2 because of read-ahead (pipelining).
-	return uint16(g.getRAM(pc))
+	g.thumbExec(uint16(g.inst.inst))
+	if g.pipe.ok {
+		g.pipe.ok = false
+		return
+	}
+	g.R[15] += 2
 }
 
 func (g *GBA) thumbExec(inst uint16) {
-	// g.thumbInst(inst)
 	switch {
 	case IsThumbShift(inst):
 		g.thumbShift(inst)
@@ -83,7 +62,7 @@ func (g *GBA) thumbExec(inst uint16) {
 	case IsThumbLinkBranch2(inst):
 		g.thumbLinkBranch2(inst)
 	default:
-		fmt.Fprintf(os.Stderr, "invalid opcode(0x%02x) in 0x%04x\n", inst, g.PC)
+		fmt.Fprintf(os.Stderr, "invalid opcode(0x%02x) in 0x%04x\n", inst, g.inst.loc)
 	}
 }
 
@@ -91,11 +70,14 @@ func (g *GBA) thumbShift(inst uint16) {
 	is, rs, rd := uint32((inst>>6)&0b11111), (inst>>3)&0b111, inst&0b111
 	switch opcode := (inst >> 11) & 0b11; opcode {
 	case 0:
-		g.R[rd] = g.armLSL(g.R[rs], is)
+		fmt.Sprintf("lsl r%d, r%d, #%d\n", rd, rs, is)
+		g.R[rd] = g.armLSL(g.R[rs], is, true)
 	case 1:
-		g.R[rd] = g.armLSR(g.R[rs], is)
+		fmt.Sprintf("lsr r%d, r%d, #%d\n", rd, rs, is)
+		g.R[rd] = g.armLSR(g.R[rs], is, true)
 	case 2:
-		g.R[rd] = g.armASR(g.R[rs], is)
+		fmt.Sprintf("asr r%d, r%d, #%d\n", rd, rs, is)
+		g.R[rd] = g.armASR(g.R[rs], is, true)
 	}
 
 	g.SetCPSRFlag(flagZ, g.R[rd] == 0)
@@ -106,30 +88,37 @@ func (g *GBA) thumbAddSub(inst uint16) {
 	delta, rs, rd := (inst>>6)&0b111, (inst>>3)&0b111, inst&0b111
 	switch opcode := (inst >> 9) & 0b11; opcode {
 	case 0:
+		// ADD Rd,Rs,Rn
+		fmt.Sprintf("add r%d, r%d, r%d\n", rd, rs, delta)
 		g.R[rd] = g.R[rs] + g.R[delta]
 		result := uint64(g.R[rs]) + uint64(g.R[delta])
-		g.SetCPSRFlag(flagC, result > 0xffff_ffff)
+		g.SetCPSRFlag(flagC, util.AddC(result))
 		g.SetCPSRFlag(flagV, util.AddV(g.R[rs], g.R[delta], uint32(result)))
 	case 1:
+		// SUB Rd,Rs,Rn
+		fmt.Sprintf("sub r%d, r%d, r%d\n", rd, rs, delta)
 		g.R[rd] = g.R[rs] - g.R[delta]
 		result := uint64(g.R[rs]) - uint64(g.R[delta])
-		g.SetCPSRFlag(flagC, result < 0x1_0000_0000)
+		g.SetCPSRFlag(flagC, util.SubC(result))
 		g.SetCPSRFlag(flagV, util.SubV(g.R[rs], g.R[delta], uint32(result)))
 	case 2:
+		// ADD Rd,Rs,#nn
+		fmt.Sprintf("add r%d, r%d, 0x%04x\n", rd, rs, delta)
 		g.R[rd] = g.R[rs] + uint32(delta)
 		result := uint64(g.R[rs]) + uint64(delta)
-		g.SetCPSRFlag(flagC, result > 0xffff_ffff)
+		g.SetCPSRFlag(flagC, util.AddC(result))
 		g.SetCPSRFlag(flagV, util.AddV(g.R[rs], uint32(delta), uint32(result)))
 	case 3:
+		// SUB Rd,Rs,#nn
+		fmt.Sprintf("sub r%d, r%d, 0x%04x\n", rd, rs, delta)
 		g.R[rd] = g.R[rs] - uint32(delta)
 		result := uint64(g.R[rs]) - uint64(delta)
-		g.SetCPSRFlag(flagC, result < 0x1_0000_0000)
+		g.SetCPSRFlag(flagC, util.SubC(result))
 		g.SetCPSRFlag(flagV, util.SubV(g.R[rs], uint32(delta), uint32(result)))
 	}
 
 	g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
 	g.SetCPSRFlag(flagZ, g.R[rd] == 0)
-	g.timer(g.cycleS(g.R[15]))
 }
 
 func (g *GBA) thumbMovCmpAddSub(inst uint16) {
@@ -138,29 +127,34 @@ func (g *GBA) thumbMovCmpAddSub(inst uint16) {
 	result := uint64(0)
 	switch opcode := (inst >> 11) & 0b11; opcode {
 	case 0:
+		// MOV Rd, #nn
+		fmt.Sprintf("mov r%d, 0x%04x\n", rd, nn)
 		result = uint64(nn)
 		g.R[rd] = nn
 	case 1:
 		// CMP
+		fmt.Sprintf("cmp r%d, 0x%04x\n", rd, nn)
 		result = uint64(g.R[rd]) - uint64(nn)
-		g.SetCPSRFlag(flagC, result < 0x1_0000_0000)
+		g.SetCPSRFlag(flagC, util.SubC(result))
 		g.SetCPSRFlag(flagV, util.SubV(g.R[rd], uint32(nn), uint32(result)))
 	case 2:
+		// ADD
+		fmt.Sprintf("add r%d, 0x%04x\n", rd, nn)
 		result = uint64(g.R[rd]) + uint64(nn)
 		g.R[rd] = g.R[rd] + nn
-		g.SetCPSRFlag(flagC, result > 0xffff_ffff)
+		g.SetCPSRFlag(flagC, util.AddC(result))
 		g.SetCPSRFlag(flagV, util.AddV(g.R[rd], uint32(nn), uint32(result)))
 	case 3:
+		// SUB
+		fmt.Sprintf("sub r%d, 0x%04x\n", rd, nn)
 		result = uint64(g.R[rd]) - uint64(nn)
 		g.R[rd] = g.R[rd] - nn
-		g.SetCPSRFlag(flagC, result < 0x1_0000_0000)
+		g.SetCPSRFlag(flagC, util.SubC(result))
 		g.SetCPSRFlag(flagV, util.SubV(lhs, uint32(nn), uint32(result)))
 	}
 
 	g.SetCPSRFlag(flagN, util.Bit(result, 31))
 	g.SetCPSRFlag(flagZ, result == 0)
-
-	g.timer(g.cycleS(g.R[15]))
 }
 
 func (g *GBA) thumbALU(inst uint16) {
@@ -169,58 +163,82 @@ func (g *GBA) thumbALU(inst uint16) {
 	opcode := (inst >> 6) & 0b1111
 
 	result := uint64(0)
+	mnemonic := "unknown"
 	switch opcode {
 	case 0:
-		g.R[rd] = g.R[rd] & g.R[rs] // Rd = Rd AND Rs
+		// AND
+		mnemonic = "and"
+		g.R[rd] = g.R[rd] & g.R[rs]
 		result = uint64(g.R[rd])
 	case 1:
-		g.R[rd] = g.R[rd] ^ g.R[rs] // Rd = Rd XOR Rs
+		// EOR(xor)
+		mnemonic = "eor"
+		g.R[rd] = g.R[rd] ^ g.R[rs]
 		result = uint64(g.R[rd])
 	case 2:
-		g.R[rd] = g.armLSL(g.R[rd], g.R[rs]&0xff) // Rd = Rd << (Rs AND 0FFh)
+		// LSL
+		mnemonic = "lsl"
+		g.R[rd] = g.armLSL(g.R[rd], g.R[rs]&0xff, true) // Rd = Rd << (Rs AND 0FFh)
 		result = uint64(g.R[rd])
 		g.timer(1)
 	case 3:
-		g.R[rd] = g.armLSR(g.R[rd], g.R[rs]&0xff) // Rd = Rd >> (Rs AND 0FFh)
+		// LSR
+		mnemonic = "lsr"
+		g.R[rd] = g.armLSR(g.R[rd], g.R[rs]&0xff, true) // Rd = Rd >> (Rs AND 0FFh)
 		result = uint64(g.R[rd])
 		g.timer(1)
 	case 4:
-		g.R[rd] = g.armASR(g.R[rd], g.R[rs]&0xff) // Rd = Rd >> (Rs AND 0FFh)
+		// ASR
+		mnemonic = "asr"
+		g.R[rd] = g.armASR(g.R[rd], g.R[rs]&0xff, true) // Rd = Rd >> (Rs AND 0FFh)
 		result = uint64(g.R[rd])
 		g.timer(1)
 	case 5:
+		// ADC
+		mnemonic = "adc"
 		result = uint64(g.R[rd]) + uint64(g.R[rs]) + uint64(util.BoolToInt(g.GetCPSRFlag(flagC)))
 		g.R[rd] = g.R[rd] + g.R[rs] + uint32(util.BoolToInt(g.GetCPSRFlag(flagC))) // Rd = Rd + Rs + Carry
-		g.SetCPSRFlag(flagC, result > 0xffff_ffff)
-		g.SetCPSRFlag(flagV, util.ToBool(^(lhs^g.R[rs])&(lhs^uint32(result))&0x8000_0000))
+		g.SetCPSRFlag(flagC, util.AddC(result))
+		g.SetCPSRFlag(flagV, util.AddV(lhs, g.R[rs], uint32(result)))
 	case 6:
-		result = uint64(g.R[rd]) - uint64(g.R[rs]) + uint64(util.BoolToInt(!g.GetCPSRFlag(flagC)))
-		g.R[rd] = g.R[rd] - g.R[rs] + uint32(util.BoolToInt(!g.GetCPSRFlag(flagC))) // Rd = Rd - Rs - NOT Carry
-		g.SetCPSRFlag(flagC, result < 0x1_0000_0000)
+		// SBC
+		mnemonic = "sbc"
+		result = uint64(g.R[rd]) - uint64(g.R[rs]) - uint64(util.BoolToInt(!g.GetCPSRFlag(flagC)))
+		g.R[rd] = g.R[rd] - g.R[rs] - uint32(util.BoolToInt(!g.GetCPSRFlag(flagC))) // Rd = Rd - Rs - NOT Carry
+		g.SetCPSRFlag(flagC, util.SubC(result))
 		g.SetCPSRFlag(flagV, util.SubV(lhs, g.R[rs], uint32(result)))
 	case 7:
-		g.R[rd] = g.armROR(g.R[rd], g.R[rs]&0xff) // Rd = Rd ROR (Rs AND 0FFh)
+		// ROR
+		mnemonic = "ror"
+		g.R[rd] = g.armROR(g.R[rd], g.R[rs]&0xff, true) // Rd = Rd ROR (Rs AND 0FFh)
 		result = uint64(g.R[rd])
 		g.timer(1)
 	case 8:
+		mnemonic = "tst"
 		result = uint64(g.R[rd] & g.R[rs]) // TST Rd,Rs
 	case 9:
+		mnemonic = "neg"
 		g.R[rd] = -g.R[rs] // Rd = -Rs
-		result = uint64(-g.R[rs])
-		g.SetCPSRFlag(flagC, result < 0x1_0000_0000)
+		result = 0 - uint64(g.R[rs])
+		g.SetCPSRFlag(flagC, util.SubC(result))
 		g.SetCPSRFlag(flagV, util.SubV(0, g.R[rs], g.R[rd]))
 	case 10:
+		// CMP
+		mnemonic = "cmp"
 		result = uint64(g.R[rd]) - uint64(g.R[rs]) // Void = Rd - Rs
-		g.SetCPSRFlag(flagC, result < 0x1_0000_0000)
+		g.SetCPSRFlag(flagC, util.SubC(result))
 		g.SetCPSRFlag(flagV, util.SubV(g.R[rd], g.R[rs], uint32(result)))
 	case 11:
+		mnemonic = "cmn"
 		result = uint64(g.R[rd]) + uint64(g.R[rs]) // Void = Rd + Rs
-		g.SetCPSRFlag(flagC, result > 0xffff_ffff)
+		g.SetCPSRFlag(flagC, util.AddC(result))
 		g.SetCPSRFlag(flagV, util.AddV(g.R[rd], g.R[rs], uint32(result)))
 	case 12:
+		mnemonic = "orr"
 		g.R[rd] = g.R[rd] | g.R[rs]
 		result = uint64(g.R[rd])
 	case 13:
+		mnemonic = "mul"
 		b1, b2, b3 := (g.R[rd]>>8)&0xff, (g.R[rd]>>16)&0xff, (g.R[rd]>>24)&0xff
 		switch {
 		case b3 > 0:
@@ -237,21 +255,23 @@ func (g *GBA) thumbALU(inst uint16) {
 		result = uint64(g.R[rd])
 		g.SetCPSRFlag(flagC, false)
 	case 14:
+		mnemonic = "bic"
 		g.R[rd] = g.R[rd] & ^g.R[rs] // BIC{S} Rd,Rs
 		result = uint64(g.R[rd])
 	case 15:
+		mnemonic = "mvn"
 		g.R[rd] = ^g.R[rs]
 		result = uint64(g.R[rd])
 	}
+	fmt.Sprintf("%s r%d, r%d\n", mnemonic, rd, rs)
 
 	g.SetCPSRFlag(flagN, util.Bit(result, 31))
 	g.SetCPSRFlag(flagZ, result == 0)
-	g.timer(g.cycleS(g.R[15]))
 }
 
 func (g *GBA) thumbHiRegisterBXOperand(r uint16) uint32 {
 	if r == 15 {
-		return g.PC + 4
+		return g.inst.loc + 4
 	}
 	return g.R[r]
 }
@@ -269,97 +289,147 @@ func (g *GBA) thumbHiRegisterBX(inst uint16) {
 	opcode := (inst >> 8) & 0b11
 	switch opcode {
 	case 0:
-		g.R[rd] = rdval + rsval // ADD Rd,Rs(Rd = Rd+Rs)
+		// ADD Rd,Rs(Rd = Rd+Rs)
+		fmt.Sprintf("add r%d, r%d\n", rd, rs)
+		g.R[rd] = rdval + rsval
 	case 1:
-		result := uint64(rdval) - uint64(rsval) // CMP Rd,Rs(Void = Rd-Rs)
+		// CMP Rd,Rs(Void = Rd-Rs)
+		fmt.Sprintf("cmp r%d, r%d\n", rd, rs)
+		result := uint64(rdval) - uint64(rsval)
 		g.SetCPSRFlag(flagN, util.Bit(result, 31))
 		g.SetCPSRFlag(flagZ, result == 0)
-		g.SetCPSRFlag(flagC, result < 0x1_0000_0000)
+		g.SetCPSRFlag(flagC, util.SubC(result))
 		g.SetCPSRFlag(flagV, util.SubV(rdval, rsval, uint32(result)))
 	case 2:
-		g.R[rd] = rsval // MOV Rd,Rs(Rd=Rs)
+		// MOV Rd,Rs(Rd=Rs)
+		fmt.Sprintf("mov r%d, r%d\n", rd, rs)
+		g.R[rd] = rsval
 	case 3:
 		// BX Rs(PC = Rs)
 		rd = 15
+		fmt.Sprintf("bx r%d\n", rs)
 		if util.Bit(rsval, 0) {
 			g.R[15] = rsval - 1
 		} else {
 			g.SetCPSRFlag(flagT, false) // switch to ARM
-			g.R[15] = util.Align4(rsval)
+			if rs == 15 {
+				g.R[15] = util.Align4(g.inst.loc + 4)
+			} else {
+				g.R[15] = rsval
+			}
 		}
 	}
 
 	if opcode != 1 && rd == 15 {
-		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]))
+		g.pipelining()
 	}
-	g.timer(g.cycleS(g.R[15]))
 }
 
 func (g *GBA) thumbLoadPCRel(inst uint16) {
 	rd, nn := (inst>>8)&0b111, uint32(inst&0b1111_1111)*4
-	pc := util.Align4(g.PC + 4)
-	g.R[rd] = g.getRAM(pc + nn)
-	g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+	fmt.Sprintf("ldr r%d, [pc, #%d]\n", rd, nn)
+	pc := util.Align4(g.inst.loc + 4)
+	g.R[rd] = g.getRAM32(pc+nn, false)
+	g.timer(1)
 }
 
 func (g *GBA) thumbLoadStoreRegOfs(inst uint16) {
 	ro, rb, rd := (inst>>6)&0b111, (inst>>3)&0b111, inst&0b111
 
 	opcode := (inst >> 10) & 0b11
+	mnemonic := "unknown"
 	switch opcode {
 	case 0:
-		g.setRAM32(g.R[rb]+g.R[ro], g.R[rd]) // STR Rd,[Rb,Ro] (WORD[Rb+Ro] = Rd)
-		g.timer(2 * g.cycleN(g.R[15]))
+		// STR Rd,[Rb,Ro]
+		mnemonic = "str"
+		g.setRAM32(g.R[rb]+g.R[ro], g.R[rd], false) // N
+		g.timer(g.cycleS2N())                       // -S + 2N
 	case 1:
-		g.setRAM8(g.R[rb]+g.R[ro], byte(g.R[rd])) // STRB Rd,[Rb,Ro] (BYTE[Rb+Ro] = Rd)
-		g.timer(2 * g.cycleN(g.R[15]))
+		mnemonic = "strb"
+		g.setRAM8(g.R[rb]+g.R[ro], byte(g.R[rd]), false) // STRB Rd,[Rb,Ro] (BYTE[Rb+Ro] = Rd)
+		g.timer(g.cycleS2N())
 	case 2:
-		g.R[rd] = g.getRAM(g.R[rb] + g.R[ro]) // LDR Rd,[Rb,Ro] (Rd = WORD[Rb+Ro])
-		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+		mnemonic = "ldr"
+		g.R[rd] = g.getRAM32(g.R[rb]+g.R[ro], false) // LDR Rd,[Rb,Ro] (Rd = WORD[Rb+Ro])
+		g.timer(1)
 	case 3:
-		g.R[rd] = uint32(byte(g.getRAM(g.R[rb] + g.R[ro]))) // LDRB Rd,[Rb,Ro] (Rd = BYTE[Rb+Ro])
-		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+		// LDRB Rd,[Rb,Ro]
+		mnemonic = "ldrb"
+		g.R[rd] = uint32(g.getRAM8(g.R[rb]+g.R[ro], false))
+		g.timer(1)
 	}
+	fmt.Sprintf("%s r%d, [r%d, r%d]\n", mnemonic, rd, rb, ro)
 }
 
 func (g *GBA) thumbLoadStoreSBH(inst uint16) {
 	ro, rb, rd := uint32((inst>>6)&0b111), (inst>>3)&0b111, inst&0b111
 
 	opcode := (inst >> 10) & 0b11
+	mnemonic := "unknown"
 	switch opcode {
 	case 0:
-		g.setRAM16(g.R[rb]+g.R[ro], uint16(g.R[rd])) // STRH Rd,[Rb,Ro]
-		g.timer(2 * g.cycleN(g.R[15]))
+		// STRH Rd,[Rb,Ro]
+		mnemonic = "strh"
+		g.setRAM16(g.R[rb]+g.R[ro], uint16(g.R[rd]), false)
+		g.timer(g.cycleS2N())
 	case 1:
-		g.R[rd] = uint32(int8(g.getRAM(g.R[rb] + g.R[ro]))) // LDSB Rd,[Rb,Ro]
-		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+		// LDSB Rd,[Rb,Ro]
+		mnemonic = "ldsb"
+		value := int32(g.getRAM8(g.R[rb]+g.R[ro], false))
+		value <<= 24
+		value >>= 24
+		g.R[rd] = uint32(value)
+		g.timer(1)
 	case 2:
-		g.R[rd] = uint32(uint16(g.getRAM(g.R[rb] + g.R[ro]))) // LDRH Rd,[Rb,Ro]
-		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+		// LDRH Rd,[Rb,Ro]
+		mnemonic = "ldrh"
+		g.R[rd] = uint32(g.getRAM16(g.R[rb]+g.R[ro], false))
+		g.timer(1)
 	case 3:
-		g.R[rd] = uint32(int16(g.getRAM(g.R[rb] + g.R[ro]))) // LDSH Rd,[Rb,Ro]
-		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+		// LDSH Rd,[Rb,Ro]
+		mnemonic = "ldsh"
+		value := int32(g.getRAM16(g.R[rb]+g.R[ro], false))
+		value <<= 16
+		value >>= 16
+		g.R[rd] = uint32(value)
+		g.timer(1)
 	}
+	fmt.Sprintf("%s r%d, [r%d, r%d]\n", mnemonic, rd, rb, ro)
 }
 
 func (g *GBA) thumbLoadStoreImmOfs(inst uint16) {
 	nn, rb, rd := uint32((inst>>6)&0b11111), (inst>>3)&0b111, inst&0b111
 
 	opcode := (inst >> 11) & 0b11
+	mnemonic := "unknown"
 	switch opcode {
 	case 0:
-		g.setRAM32(g.R[rb]+nn*4, g.R[rd]) // STR Rd,[Rb,Ro] (WORD[Rb+Ro] = Rd)
-		g.timer(2 * g.cycleN(g.R[15]))
+		// STR Rd,[Rb,#nn]
+		mnemonic = "str"
+		nn *= 4
+		g.setRAM32(g.R[rb]+nn, g.R[rd], false)
+		g.timer(g.cycleS2N())
 	case 1:
-		g.R[rd] = g.getRAM(g.R[rb] + nn*4) // LDR Rd,[Rb,Ro] (Rd = WORD[Rb+Ro])
-		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+		// LDR Rd,[Rb,#nn]
+		mnemonic = "ldr"
+		nn *= 4
+		g.R[rd] = g.getRAM32(g.R[rb]+nn, false)
+		g.timer(1)
 	case 2:
-		g.setRAM8(g.R[rb]+nn, byte(g.R[rd])) // STRB Rd,[Rb,Ro] (BYTE[Rb+Ro] = Rd)
-		g.timer(2 * g.cycleN(g.R[15]))
+		// STRB Rd,[Rb,#nn]
+		mnemonic = "strb"
+		g.setRAM8(g.R[rb]+nn, byte(g.R[rd]), false)
+		g.timer(g.cycleS2N())
 	case 3:
-		g.R[rd] = uint32(byte(g.getRAM(g.R[rb] + nn))) // LDRB Rd,[Rb,Ro] (Rd = BYTE[Rb+Ro])
-		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+		// LDRB Rd,[Rb,#nn]
+		mnemonic = "ldrb"
+		g.R[rd] = uint32(g.getRAM8(g.R[rb]+nn, false))
+		if g.inst.loc == 0x13c {
+
+		}
+		g.timer(1)
 	}
+	fmt.Sprintf("%s r%d, [r%d, #%d]\n", mnemonic, rd, rb, nn)
 }
 
 func (g *GBA) thumbLoadStoreH(inst uint16) {
@@ -368,11 +438,13 @@ func (g *GBA) thumbLoadStoreH(inst uint16) {
 	opcode := (inst >> 11) & 0b1
 	switch opcode {
 	case 0:
-		g.setRAM16(g.R[rb]+nn, uint16(g.R[rd])) // STRH Rd,[Rb,#nn]
-		g.timer(2 * g.cycleN(g.R[15]))
+		fmt.Sprintf("strh r%d, [r%d, #%d]\n", rd, rb, nn)
+		g.setRAM16(g.R[rb]+nn, uint16(g.R[rd]), false) // STRH Rd,[Rb,#nn]
+		g.timer(g.cycleS2N())
 	case 1:
-		g.R[rd] = uint32(uint16(g.getRAM(g.R[rb] + nn))) // LDRH Rd,[Rb,#nn]
-		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+		fmt.Sprintf("ldrh r%d, [r%d, #%d]\n", rd, rb, nn)
+		g.R[rd] = uint32(g.getRAM16(g.R[rb]+nn, false)) // LDRH Rd,[Rb,#nn]
+		g.timer(1)
 	}
 }
 
@@ -382,11 +454,13 @@ func (g *GBA) thumbLoadSPRel(inst uint16) {
 	sp, opcode := g.R[13], (inst>>11)&0b1
 	switch opcode {
 	case 0:
-		g.setRAM32(sp+nn, g.R[rd])
-		g.timer(2 * g.cycleN(g.R[15]))
+		fmt.Sprintf("str r%d, [sp, #%d]\n", rd, nn)
+		g.setRAM32(sp+nn, g.R[rd], false)
+		g.timer(g.cycleS2N())
 	case 1:
-		g.R[rd] = g.getRAM(sp + nn)
-		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+		fmt.Sprintf("ldr r%d, [sp, #%d]\n", rd, nn)
+		g.R[rd] = g.getRAM32(sp+nn, false)
+		g.timer(1)
 	}
 }
 
@@ -401,33 +475,34 @@ func (g *GBA) thumbStack(inst uint16) {
 		lr := util.Bit(inst, 8)
 		if lr {
 			g.R[13] -= 4
-			g.setRAM32(g.R[13], g.R[14]) // PUSH lr
+			g.setRAM32(g.R[13], g.R[14], n > 0) // PUSH lr
 			n++
 		}
-		for i := 0; i < 8; i++ {
+		for i := 7; i >= 0; i-- {
 			if util.ToBool(rlist & (0b1 << i)) {
 				g.R[13] -= 4
-				g.setRAM32(g.R[13], g.R[i]) // PUSH
+				g.setRAM32(g.R[13], g.R[i], n > 0) // PUSH
 				n++
 			}
 		}
-		g.timer((n-1)*g.cycleS(g.R[15]) + 2*g.cycleN(g.R[15]))
+		g.timer(g.cycleS2N())
 	case 1:
 		n := 0
-		for i := 7; i >= 0; i-- {
+		for i := 0; i < 8; i++ {
 			if util.ToBool(rlist & (0b1 << i)) {
-				g.R[i] = g.getRAM(g.R[13]) // POP
+				g.R[i] = g.getRAM32(g.R[13], n > 0) // POP
 				g.R[13] += 4
 				n++
 			}
 		}
 		pc := util.Bit(inst, 8)
 		if pc {
-			g.R[15] = g.getRAM(g.R[13]) // POP pc
+			g.R[15] = g.getRAM32(g.R[13], n > 0) // POP pc
+			g.R[15] = util.Align2(g.R[15])
 			g.R[13] += 4
-			g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]))
+			g.pipelining()
 		}
-		g.timer(n*g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+		g.timer(1)
 	}
 }
 
@@ -437,25 +512,27 @@ func (g *GBA) thumbStackMultiple(inst uint16) {
 	opcode := (inst >> 11) & 0b1
 	switch opcode {
 	case 0:
+		fmt.Sprintf("stmia r%d!, {", rb)
 		n := 0
 		for i := 0; i < 8; i++ {
 			if util.ToBool(rlist & (0b1 << i)) {
-				g.setRAM32(g.R[rb], g.R[i]) // STMIA
+				g.setRAM32(g.R[rb], g.R[i], n > 0) // STMIA
 				g.R[rb] += 4
 				n++
 			}
-		}
-		g.timer((n-1)*g.cycleS(g.R[15]) + 2*g.cycleN(g.R[15]))
+		} // (n-1)S + N
+		g.timer(g.cycleS2N()) // (n-2)S + 2N
 	case 1:
+		fmt.Sprintf("ldmia r%d!, {", rb)
 		n := 0
 		for i := 0; i < 8; i++ {
 			if util.ToBool(rlist & (0b1 << i)) {
-				g.R[i] = g.getRAM(g.R[rb]) // LDMIA
+				g.R[i] = g.getRAM32(g.R[rb], n > 0) // LDMIA
 				g.R[rb] += 4
 				n++
 			}
-		}
-		g.timer(n*g.cycleS(g.R[15]) + g.cycleN(g.R[15]) + 1)
+		} // (n-1)S + N
+		g.timer(1) // (n-1)S + N + 1
 	}
 }
 
@@ -465,23 +542,25 @@ func (g *GBA) thumbGetAddr(inst uint16) {
 	opcode := (inst >> 11) & 0b1
 	switch opcode {
 	case 0:
-		g.R[rd] = util.Align4(g.PC+4) + nn // ADD  Rd,PC,#nn
+		fmt.Sprintf("add r%d, pc, #%d\n", rd, nn)
+		g.R[rd] = (util.Align4(g.inst.loc + 4)) + nn // ADD  Rd,PC,#nn
 	case 1:
+		fmt.Sprintf("add r%d, sp, #%d\n", rd, nn)
 		g.R[rd] = g.R[13] + nn // ADD  Rd,SP,#nn
 	}
-	g.timer(g.cycleS(g.R[15]))
 }
 
 func (g *GBA) thumbMoveSP(inst uint16) {
-	nn := uint32((inst & 0b0111_111) * 4)
+	nn := uint32((inst & 0b0111_1111) * 4)
 	opcode := (inst >> 7) & 0b1
 	switch opcode {
 	case 0:
+		fmt.Sprintf("add sp, #%d\n", nn)
 		g.R[13] += nn // ADD SP,#nn
 	case 1:
+		fmt.Sprintf("add sp, #-%d\n", nn)
 		g.R[13] -= nn // ADD SP,#-nn
 	}
-	g.timer(g.cycleS(g.R[15]))
 }
 
 func (g *GBA) thumbCondBranch(inst uint16) {
@@ -489,17 +568,18 @@ func (g *GBA) thumbCondBranch(inst uint16) {
 	if g.Check(cond) {
 		nn := int8(byte(inst & 0b1111_1111))
 		if nn > 0 {
-			g.R[15] = g.PC + 4 + uint32(nn)*2
+			g.R[15] = g.inst.loc + 4 + uint32(nn)*2
 		} else {
-			g.R[15] = g.PC + 4 - uint32(-nn)*2
+			g.R[15] = g.inst.loc + 4 - uint32(-nn)*2
 		}
-		g.timer(g.cycleS(g.R[15]) + g.cycleN(g.R[15]))
+		fmt.Sprintf("b%s 0x%04x\n", cond, g.R[15])
+		g.pipelining()
 	}
-	g.timer(g.cycleS(g.R[15]))
 }
 
 func (g *GBA) thumbSWI(inst uint16) {
-	fmt.Printf("exception occurred: SWI %02x\n", byte(inst))
+	nn := byte(inst)
+	g.printSWI(nn)
 	g.exception(swiVec, SWI)
 }
 
@@ -509,37 +589,34 @@ func (g *GBA) thumbB(inst uint16) {
 	nn >>= 20
 
 	if nn > 0 {
-		g.R[15] = g.PC + 4 + uint32(nn)
+		g.R[15] = g.inst.loc + 4 + uint32(nn)
 	} else {
-		g.R[15] = g.PC + 4 - uint32(-nn)
+		g.R[15] = g.inst.loc + 4 - uint32(-nn)
 	}
-	g.timer(2*g.cycleS(g.R[15]) + g.cycleN(g.R[15]))
+	fmt.Sprintf("b 0x%04x\n", g.R[15])
+	g.pipelining()
 }
 
 func (g *GBA) thumbLinkBranch1(inst uint16) {
 	nn := int32(inst)
 	nn <<= 21
 	nn >>= 9
-	g.R[14] = g.PC + 4
+	g.R[14] = g.inst.loc + 4
 	if nn > 0 {
 		g.R[14] += uint32(nn)
 	} else {
 		g.R[14] -= uint32(-nn)
 	}
-	g.timer(g.cycleS(g.R[15]))
 }
 
 func (g *GBA) thumbLinkBranch2(inst uint16) {
-	opcode, nn := (inst>>11)&0b11111, inst&0b0111_1111_1111
+	nn := inst & 0b0111_1111_1111
 	g.R[15] = g.R[14] + uint32(nn<<1)
-	g.R[14] = g.PC + 2 // return
+	g.R[14] = g.inst.loc + 2 // return
 	if g.R[14]&1 == 0 {
 		g.R[14]++
 	}
 
-	// BLX
-	if opcode == 0b11101 {
-		g.SetCPSRFlag(flagT, false)
-	}
-	g.timer(2*g.cycleS(g.R[15]) + g.cycleN(g.R[15]))
+	fmt.Sprintf("bl 0x%04x\n", g.R[15])
+	g.pipelining()
 }

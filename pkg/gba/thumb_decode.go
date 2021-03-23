@@ -109,5 +109,5 @@ func IsThumbLinkBranch1(inst uint16) bool {
 
 // IsThumbLinkBranch2 returns instruction is the second of long branch with link
 func IsThumbLinkBranch2(inst uint16) bool {
-	return util.Bit(inst, 15) && util.Bit(inst, 14) && util.Bit(inst, 13) && util.Bit(inst, 11) // 0b111x1
+	return util.Bit(inst, 15) && util.Bit(inst, 14) && util.Bit(inst, 13) && util.Bit(inst, 12) && util.Bit(inst, 11) // 0b11111
 }
