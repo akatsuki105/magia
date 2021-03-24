@@ -3,6 +3,7 @@ package gba
 import (
 	"mettaur/pkg/gpu"
 	"mettaur/pkg/ram"
+	"mettaur/pkg/timer"
 	"mettaur/pkg/util"
 )
 
@@ -76,6 +77,8 @@ func (g *GBA) _setRAM8(addr uint32, b byte) {
 	switch {
 	case gpu.IsIO(addr):
 		g.GPU.IO[addr-0x0400_0000] = b
+	case timer.IsIO(addr):
+		g.timers.SetIO(addr-0x0400_0100, b)
 	case addr == ram.DISPCNT || addr == ram.DISPCNT+1 || addr == ram.IME || addr == ram.IME+1 || addr == ram.IME+2 || addr == ram.IME+3:
 		g.RAM.Set8(addr, b)
 		g.checkIRQ()

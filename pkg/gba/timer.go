@@ -72,8 +72,14 @@ func (g *GBA) waitBus(addr uint32, size int, s bool) int {
 }
 
 func (g *GBA) timer(cycle int) {
-	g.cycle += cycle
-	if debugCounterOn {
-		debugCounter += cycle
+	for cycle > 0 {
+		g.cycle++
+		irqs := g.timers.Tick()
+		for i, irq := range irqs {
+			if irq {
+				g.triggerIRQ(i + 3)
+			}
+		}
+		cycle--
 	}
 }

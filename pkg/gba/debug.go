@@ -17,9 +17,6 @@ var breakPoint []uint32 = []uint32{
 	// ROM + 0x77f4,
 }
 
-var debugCounter = 0
-var debugCounterOn = false
-
 func (g *GBA) in(start, end uint32) bool {
 	return g.inst.loc >= start && g.inst.loc <= end
 }

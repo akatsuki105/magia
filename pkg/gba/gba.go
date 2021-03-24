@@ -6,6 +6,7 @@ import (
 	"mettaur/pkg/cart"
 	"mettaur/pkg/gpu"
 	"mettaur/pkg/ram"
+	"mettaur/pkg/timer"
 	"mettaur/pkg/util"
 )
 
@@ -50,6 +51,7 @@ type GBA struct {
 	halt       bool
 	pipe       Pipe
 	debug      Debug
+	timers     timer.Timers
 }
 
 type Pipe struct {
