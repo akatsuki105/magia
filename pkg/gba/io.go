@@ -87,6 +87,11 @@ func (g *GBA) _setRAM8(addr uint32, b byte) {
 		g.RAM.Set8(addr, value & ^b)
 	case addr == ram.HALTCNT:
 		g.halt = true
+		if g.GetCPSRFlag(flagT) {
+			g.inst.loc += 2
+		} else {
+			g.inst.loc += 4
+		}
 	case ram.Palette(addr):
 		g.GPU.Palette[ram.PaletteOffset(addr)] = b
 	case ram.VRAM(addr):
