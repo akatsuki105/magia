@@ -27,6 +27,7 @@ func (g *GBA) armStep() {
 }
 
 func (g *GBA) armExec(inst uint32) {
+	// g.armInst(inst)
 	cond := Cond(inst >> 28)
 	if g.Check(cond) {
 		switch {

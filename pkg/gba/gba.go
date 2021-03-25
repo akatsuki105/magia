@@ -263,6 +263,16 @@ func (g *GBA) cycleS2N() int {
 	return n - s
 }
 
+/*
+* Adjust PC based on exception
+* Exc  ARM  Thumb
+* DA   $+8  $+8
+* FIQ  $+4  $+4
+* IRQ  $+4  $+4
+* PA   $+4  $+4
+* UND  $+4  $+2
+* SVC  $+4  $+2
+ */
 func (g *GBA) exceptionNN(vec uint32) uint32 {
 	nn := uint32(0)
 	t := g.GetCPSRFlag(flagT)
@@ -271,12 +281,12 @@ func (g *GBA) exceptionNN(vec uint32) uint32 {
 		nn = 8
 	case fiqVec, irqVec, prefetchAbortVec:
 		nn = 4
-	case undVec, swiVec:
-		if t {
-			nn = 2
-		} else {
-			nn = 4
-		}
+	}
+
+	if t {
+		nn += 2
+	} else {
+		nn += 4
 	}
 	return nn
 }
