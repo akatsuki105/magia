@@ -14,7 +14,16 @@ type Debug struct {
 }
 
 var breakPoint []uint32 = []uint32{
-	// ROM + 0x77f4,
+	// ROM + 0x6abe,
+}
+
+func (g *GBA) breakpoint() {
+	fmt.Printf("Breakpoint: 0x%04x\n", g.inst.loc)
+	g.printRegister()
+	g.printPSR()
+	g.printLCD()
+	fmt.Println()
+	counter++
 }
 
 func (g *GBA) in(start, end uint32) bool {
@@ -159,7 +168,7 @@ func (g *GBA) printSWI(nn byte) {
 
 	switch nn {
 	case 0x05:
-		fmt.Printf("%s.VBlankIntrWait() in %04x\n", state, g.inst.loc)
+		// fmt.Printf("%s.VBlankIntrWait() in %04x\n", state, g.inst.loc)
 	case 0x0c:
 		fmt.Printf("%s.CPUFastSet(0x%x, 0x%x, 0x%x) in %04x\n", state, g.R[0], g.R[1], g.R[2], g.inst.loc)
 	default:

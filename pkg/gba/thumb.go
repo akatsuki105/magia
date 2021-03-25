@@ -20,6 +20,7 @@ func (g *GBA) thumbStep() {
 }
 
 func (g *GBA) thumbExec(inst uint16) {
+	// g.thumbInst(inst)
 	switch {
 	case IsThumbShift(inst):
 		g.thumbShift(inst)
@@ -86,35 +87,36 @@ func (g *GBA) thumbShift(inst uint16) {
 
 func (g *GBA) thumbAddSub(inst uint16) {
 	delta, rs, rd := (inst>>6)&0b111, (inst>>3)&0b111, inst&0b111
+	lhs, rhs := g.R[rs], g.R[delta]
 	switch opcode := (inst >> 9) & 0b11; opcode {
 	case 0:
 		// ADD Rd,Rs,Rn
 		fmt.Sprintf("add r%d, r%d, r%d\n", rd, rs, delta)
-		g.R[rd] = g.R[rs] + g.R[delta]
-		result := uint64(g.R[rs]) + uint64(g.R[delta])
+		result := uint64(lhs) + uint64(rhs)
+		g.R[rd] = lhs + rhs
 		g.SetCPSRFlag(flagC, util.AddC(result))
-		g.SetCPSRFlag(flagV, util.AddV(g.R[rs], g.R[delta], uint32(result)))
+		g.SetCPSRFlag(flagV, util.AddV(lhs, rhs, uint32(result)))
 	case 1:
 		// SUB Rd,Rs,Rn
 		fmt.Sprintf("sub r%d, r%d, r%d\n", rd, rs, delta)
-		g.R[rd] = g.R[rs] - g.R[delta]
-		result := uint64(g.R[rs]) - uint64(g.R[delta])
+		result := uint64(lhs) - uint64(rhs)
+		g.R[rd] = lhs - rhs
 		g.SetCPSRFlag(flagC, util.SubC(result))
-		g.SetCPSRFlag(flagV, util.SubV(g.R[rs], g.R[delta], uint32(result)))
+		g.SetCPSRFlag(flagV, util.SubV(lhs, rhs, uint32(result)))
 	case 2:
 		// ADD Rd,Rs,#nn
 		fmt.Sprintf("add r%d, r%d, 0x%04x\n", rd, rs, delta)
-		g.R[rd] = g.R[rs] + uint32(delta)
-		result := uint64(g.R[rs]) + uint64(delta)
+		result := uint64(lhs) + uint64(delta)
+		g.R[rd] = lhs + uint32(delta)
 		g.SetCPSRFlag(flagC, util.AddC(result))
-		g.SetCPSRFlag(flagV, util.AddV(g.R[rs], uint32(delta), uint32(result)))
+		g.SetCPSRFlag(flagV, util.AddV(lhs, uint32(delta), uint32(result)))
 	case 3:
 		// SUB Rd,Rs,#nn
 		fmt.Sprintf("sub r%d, r%d, 0x%04x\n", rd, rs, delta)
-		g.R[rd] = g.R[rs] - uint32(delta)
-		result := uint64(g.R[rs]) - uint64(delta)
+		result := uint64(lhs) - uint64(delta)
+		g.R[rd] = lhs - uint32(delta)
 		g.SetCPSRFlag(flagC, util.SubC(result))
-		g.SetCPSRFlag(flagV, util.SubV(g.R[rs], uint32(delta), uint32(result)))
+		g.SetCPSRFlag(flagV, util.SubV(lhs, uint32(delta), uint32(result)))
 	}
 
 	g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
@@ -143,7 +145,7 @@ func (g *GBA) thumbMovCmpAddSub(inst uint16) {
 		result = uint64(g.R[rd]) + uint64(nn)
 		g.R[rd] = g.R[rd] + nn
 		g.SetCPSRFlag(flagC, util.AddC(result))
-		g.SetCPSRFlag(flagV, util.AddV(g.R[rd], uint32(nn), uint32(result)))
+		g.SetCPSRFlag(flagV, util.AddV(lhs, uint32(nn), uint32(result)))
 	case 3:
 		// SUB
 		fmt.Sprintf("sub r%d, 0x%04x\n", rd, nn)
@@ -159,7 +161,7 @@ func (g *GBA) thumbMovCmpAddSub(inst uint16) {
 
 func (g *GBA) thumbALU(inst uint16) {
 	rs, rd := (inst>>3)&0b111, inst&0b111
-	lhs := g.R[rd]
+	lhs, rhs := g.R[rd], g.R[rs]
 	opcode := (inst >> 6) & 0b1111
 
 	result := uint64(0)
@@ -199,14 +201,14 @@ func (g *GBA) thumbALU(inst uint16) {
 		result = uint64(g.R[rd]) + uint64(g.R[rs]) + uint64(util.BoolToInt(g.GetCPSRFlag(flagC)))
 		g.R[rd] = g.R[rd] + g.R[rs] + uint32(util.BoolToInt(g.GetCPSRFlag(flagC))) // Rd = Rd + Rs + Carry
 		g.SetCPSRFlag(flagC, util.AddC(result))
-		g.SetCPSRFlag(flagV, util.AddV(lhs, g.R[rs], uint32(result)))
+		g.SetCPSRFlag(flagV, util.AddV(lhs, rhs, uint32(result)))
 	case 6:
 		// SBC
 		mnemonic = "sbc"
 		result = uint64(g.R[rd]) - uint64(g.R[rs]) - uint64(util.BoolToInt(!g.GetCPSRFlag(flagC)))
 		g.R[rd] = g.R[rd] - g.R[rs] - uint32(util.BoolToInt(!g.GetCPSRFlag(flagC))) // Rd = Rd - Rs - NOT Carry
 		g.SetCPSRFlag(flagC, util.SubC(result))
-		g.SetCPSRFlag(flagV, util.SubV(lhs, g.R[rs], uint32(result)))
+		g.SetCPSRFlag(flagV, util.SubV(lhs, rhs, uint32(result)))
 	case 7:
 		// ROR
 		mnemonic = "ror"
@@ -218,10 +220,11 @@ func (g *GBA) thumbALU(inst uint16) {
 		result = uint64(g.R[rd] & g.R[rs]) // TST Rd,Rs
 	case 9:
 		mnemonic = "neg"
-		g.R[rd] = -g.R[rs] // Rd = -Rs
+		rhs := g.R[rs]
 		result = 0 - uint64(g.R[rs])
+		g.R[rd] = -g.R[rs] // Rd = -Rs
 		g.SetCPSRFlag(flagC, util.SubC(result))
-		g.SetCPSRFlag(flagV, util.SubV(0, g.R[rs], g.R[rd]))
+		g.SetCPSRFlag(flagV, util.SubV(0, rhs, g.R[rd]))
 	case 10:
 		// CMP
 		mnemonic = "cmp"

@@ -83,7 +83,7 @@ func (g *GBA) Check(cond Cond) bool {
 	case HI:
 		return g.GetCPSRFlag(flagC) && !g.GetCPSRFlag(flagZ)
 	case LS:
-		return !g.GetCPSRFlag(flagC)
+		return (!g.GetCPSRFlag(flagC) || g.GetCPSRFlag(flagZ))
 	case GE:
 		return g.GetCPSRFlag(flagN) == g.GetCPSRFlag(flagV)
 	case LT:

@@ -740,8 +740,8 @@ func (g *GBA) armMPYCycle(cycle int, val uint32) {
 
 // Rd=Rm*Rs
 func (g *GBA) armMUL(inst uint32) {
-	rd, rs := inst>>16&0b1111, inst>>8&0b1111
-	g.R[rd] *= g.R[rs]
+	rd, rs, rm := inst>>16&0b1111, inst>>8&0b1111, inst&0b1111
+	g.R[rd] = g.R[rm] * g.R[rs]
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
@@ -752,8 +752,8 @@ func (g *GBA) armMUL(inst uint32) {
 
 // Rd=Rm*Rs+Rn
 func (g *GBA) armMLA(inst uint32) {
-	rd, rn, rs := inst>>16&0b1111, inst>>12&0b1111, inst>>8&0b1111
-	g.R[rd] = g.R[rd]*g.R[rs] + g.R[rn]
+	rd, rn, rs, rm := inst>>16&0b1111, inst>>12&0b1111, inst>>8&0b1111, inst&0b1111
+	g.R[rd] = g.R[rm]*g.R[rs] + g.R[rn]
 	if s := inst>>20&0b1 != 0; s {
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))

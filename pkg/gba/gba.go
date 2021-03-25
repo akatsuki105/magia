@@ -1,7 +1,6 @@
 package gba
 
 import (
-	"fmt"
 	"image"
 	"mettaur/pkg/cart"
 	"mettaur/pkg/gpu"
@@ -104,10 +103,7 @@ func (g *GBA) step() {
 
 	for _, bk := range breakPoint {
 		if g.inst.loc == bk {
-			fmt.Printf("Breakpoint: 0x%04x\n", g.inst.loc)
-			g.printRegister()
-			fmt.Println()
-			counter++
+			g.breakpoint()
 		}
 	}
 
@@ -156,6 +152,7 @@ func (g *GBA) Update() {
 	// VBlank
 	dispstat := uint16(g._getRAM(ram.DISPSTAT))
 	if util.Bit(dispstat, 3) {
+		// g.printBGMap0()
 		g.triggerIRQ(irqVBlank)
 	}
 
