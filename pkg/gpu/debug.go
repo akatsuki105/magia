@@ -25,3 +25,15 @@ func (g *GPU) PrintBGMap0() {
 	}
 	fmt.Println("]")
 }
+
+func (g *GPU) PrintPalette() {
+	fmt.Println("[")
+	for i := 0; i < 512; i += 2 {
+		if i%32 == 0 && i > 0 {
+			fmt.Println()
+		}
+		color := util.LE16(g.Palette[i:])
+		fmt.Printf("%04x ", color)
+	}
+	fmt.Println("]")
+}
