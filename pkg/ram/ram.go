@@ -69,10 +69,10 @@ func (r *RAM) Get(addr uint32) uint32 {
 		return util.LE32(r.GamePak0[offset:])
 	case GamePak1(addr):
 		offset := GamePak1Offset(addr)
-		return util.LE32(r.GamePak1[offset:])
+		return util.LE32(r.GamePak0[offset:])
 	case GamePak2(addr):
 		offset := GamePak2Offset(addr)
-		return util.LE32(r.GamePak2[offset:])
+		return util.LE32(r.GamePak0[offset:])
 	case SRAM(addr):
 		offset := SRAMOffset(addr)
 		return util.LE32(r.SRAM[offset:])

@@ -70,7 +70,7 @@ func Run() ExitCode {
 	emu := &Emulator{
 		gba: gba.New(data),
 	}
-	emu.gba.SoftReset()
+	emu.gba.Reset()
 
 	ebiten.SetWindowResizable(true)
 	ebiten.SetWindowTitle(title)

@@ -14,7 +14,7 @@ type Debug struct {
 }
 
 var breakPoint []uint32 = []uint32{
-	// ROM + 0x6abe,
+	// 0x22c2,
 }
 
 func (g *GBA) breakpoint() {
@@ -23,7 +23,11 @@ func (g *GBA) breakpoint() {
 	g.printPSR()
 	g.printLCD()
 	fmt.Println()
+
 	counter++
+	// if counter == 1 {
+	// 	panic("")
+	// }
 }
 
 func (g *GBA) in(start, end uint32) bool {
@@ -142,6 +146,12 @@ func (g *GBA) printPSR() {
 	fmt.Printf(str, g.CPSR, g.printCPSRFlag(), g.SPSRBank[0], g.SPSRBank[1], g.SPSRBank[2], g.SPSRBank[3], g.SPSRBank[4])
 }
 
+func (g *GBA) printR13Bank() {
+	str := ` R13_fiq: 0x%08x R13_svc: 0x%08x R13_abt: 0x%08x R13_irq: 0x%08x R13_und: 0x%08x R13_usr: 0x%08x
+`
+	fmt.Printf(str, g.R13Bank[0], g.R13Bank[1], g.R13Bank[2], g.R13Bank[3], g.R13Bank[4], g.R13Bank[5])
+}
+
 func (g *GBA) printR14Bank() {
 	str := ` R14_fiq: 0x%08x R14_svc: 0x%08x R14_abt: 0x%08x R14_irq: 0x%08x R14_und: 0x%08x R14_usr: 0x%08x
 `
@@ -172,6 +182,8 @@ func (g *GBA) printSWI(nn byte) {
 	switch nn {
 	case 0x05:
 		// fmt.Printf("%s.VBlankIntrWait() in %04x\n", state, g.inst.loc)
+	case 0x0b:
+		fmt.Printf("%s.CPUSet(0x%x, 0x%x, 0x%x) in %04x\n", state, g.R[0], g.R[1], g.R[2], g.inst.loc)
 	case 0x0c:
 		fmt.Printf("%s.CPUFastSet(0x%x, 0x%x, 0x%x) in %04x\n", state, g.R[0], g.R[1], g.R[2], g.inst.loc)
 	default:

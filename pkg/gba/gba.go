@@ -115,7 +115,9 @@ func (g *GBA) step() {
 }
 
 func (g *GBA) Reset() {
-	g.exception(resetVec, SWI)
+	g.R[13] = 0x03007f00
+	g.CPSR = 0x1f
+	g.pipelining()
 }
 
 func (g *GBA) SoftReset() {
@@ -152,7 +154,6 @@ func (g *GBA) Update() {
 	// VBlank
 	dispstat := uint16(g._getRAM(ram.DISPSTAT))
 	if util.Bit(dispstat, 3) {
-		// g.printBGMap0()
 		g.triggerIRQ(irqVBlank)
 	}
 
@@ -170,14 +171,10 @@ func (g *GBA) Update() {
 }
 
 func (g *GBA) scanline() {
-	dispstat := uint16(g._getRAM(ram.DISPSTAT))
-	vCount := g.GPU.IncrementVCount()
-	if vCount == byte(g._getRAM(ram.DISPSTAT+1)) {
-		if util.Bit(dispstat, 5) {
-			g.triggerIRQ(irqVCount)
-		}
-	}
+	g.RAM.IO[0x130] = 0xff
+	g.RAM.IO[0x131] = 0x03
 
+	dispstat := uint16(g._getRAM(ram.DISPSTAT))
 	g.exec(1006)
 
 	// HBlank
@@ -190,6 +187,13 @@ func (g *GBA) scanline() {
 	g.GPU.SetHBlank(true)
 	g.exec(1232 - 1006)
 	g.GPU.SetHBlank(false)
+
+	vCount := g.GPU.IncrementVCount()
+	if vCount == byte(g._getRAM(ram.DISPSTAT+1)) {
+		if util.Bit(dispstat, 5) {
+			g.triggerIRQ(irqVCount)
+		}
+	}
 
 	g.line++
 }

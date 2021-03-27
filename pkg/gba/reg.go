@@ -90,9 +90,12 @@ func (r *Reg) GetCPSRFlag(idx int) bool {
 	return ((r.CPSR >> idx) & 1) == 1
 }
 
-// GetOSMode get Processor mode
+// getOSMode get Processor mode
 func (r *Reg) getOSMode() Mode {
 	return Mode(r.CPSR & 0b11111)
+}
+func (r *Reg) isSysMode() bool {
+	return Mode(r.CPSR&0b11111) == SYS
 }
 
 // SetOSMode set Processor mode

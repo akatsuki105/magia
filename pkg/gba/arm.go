@@ -27,7 +27,6 @@ func (g *GBA) armStep() {
 }
 
 func (g *GBA) armExec(inst uint32) {
-	// g.armInst(inst)
 	cond := Cond(inst >> 28)
 	if g.Check(cond) {
 		switch {
@@ -189,7 +188,9 @@ func (g *GBA) _armLDM(inst uint32) {
 	if util.Bit(inst, 15) {
 		g.pipelining()
 	}
-	if !writeBack {
+
+	// Pre-indexing, write-back is optional
+	if p && !writeBack {
 		g.R[rn] = rnval
 	}
 }
@@ -252,7 +253,9 @@ func (g *GBA) _armSTM(inst uint32) {
 	}
 
 	g.timer(g.cycleS2N())
-	if !writeBack {
+
+	// Pre-indexing, write-back is optional
+	if p && !writeBack {
 		g.R[rn] = rnval
 	}
 }
@@ -297,16 +300,23 @@ func (g *GBA) armLDR(inst uint32) {
 	} else {
 		g.R[rd] = g.getRAM32(addr, false)
 	}
-	if !pre {
+
+	// writeBack
+	if pre {
+		// Pre-indexing, write-back is optional
 		if writeBack := util.Bit(inst, 21); writeBack {
-			if plus {
-				addr += ofs
-			} else {
-				addr -= ofs
-			}
 			g.R[rn] = addr
 		}
+	} else {
+		// Post-indexing, write-back is ALWAYS enabled
+		if plus {
+			addr += ofs
+		} else {
+			addr -= ofs
+		}
+		g.R[rn] = addr
 	}
+
 	if rd == 15 {
 		g.pipelining()
 	}
@@ -331,16 +341,23 @@ func (g *GBA) armSTR(inst uint32) {
 	} else {
 		g.setRAM32(addr, g.R[rd], false)
 	}
-	if !pre {
+
+	// writeBack
+	if pre {
+		// Pre-indexing, write-back is optional
 		if writeBack := util.Bit(inst, 21); writeBack {
-			if plus {
-				addr += ofs
-			} else {
-				addr -= ofs
-			}
 			g.R[rn] = addr
 		}
+	} else {
+		// Post-indexing, write-back is ALWAYS enabled
+		if plus {
+			addr += ofs
+		} else {
+			addr -= ofs
+		}
+		g.R[rn] = addr
 	}
+
 	g.timer(g.cycleS2N())
 }
 
@@ -703,23 +720,28 @@ func (g *GBA) armMVN(inst uint32) {
 }
 
 func (g *GBA) armMPY(inst uint32) {
-	switch inst >> 21 & 0b1111 {
-	case 0:
+	opcode := inst >> 21 & 0b1111
+	switch opcode {
+	case 0b0000:
 		g.armMUL(inst)
-	case 1:
+	case 0b0001:
 		g.armMLA(inst)
-	case 4:
+	case 0b0010:
+		fmt.Fprintf(os.Stderr, "UMAAL is unsupported in 0x%08x\n", g.inst.loc)
+	case 0b0100:
 		// umull
 		g.armUMULL(inst)
-	case 5:
+	case 0b0101:
 		// umlal
 		g.armUMLAL(inst)
-	case 6:
+	case 0b0110:
 		// smull
 		g.armSMULL(inst)
-	case 7:
+	case 0b0111:
 		// smlal
 		g.armSMLAL(inst)
+	default:
+		fmt.Fprintf(os.Stderr, "invalid opcode(%d) is unsupported in 0x%08x\n", opcode, g.inst.loc)
 	}
 }
 
@@ -769,7 +791,7 @@ func (g *GBA) armUMULL(inst uint32) {
 	result := uint64(g.R[rs]) * uint64(g.R[rm])
 	g.R[rdHi], g.R[rdLo] = uint32(result>>32), uint32(result)
 	if s := inst>>20&0b1 != 0; s {
-		g.SetCPSRFlag(flagZ, result == 0)
+		g.SetCPSRFlag(flagZ, uint32(result) == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rdHi], 31))
 	}
 
@@ -782,7 +804,7 @@ func (g *GBA) armUMLAL(inst uint32) {
 	result := uint64(g.R[rs])*uint64(g.R[rm]) + uint64(g.R[rdHi])<<32 | uint64(g.R[rdLo])
 	g.R[rdHi], g.R[rdLo] = uint32(result>>32), uint32(result)
 	if s := inst>>20&0b1 != 0; s {
-		g.SetCPSRFlag(flagZ, result == 0)
+		g.SetCPSRFlag(flagZ, uint32(result) == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rdHi], 31))
 	}
 
@@ -795,7 +817,7 @@ func (g *GBA) armSMULL(inst uint32) {
 	result := int64(int32(g.R[rs])) * int64(int32(g.R[rm]))
 	g.R[rdHi], g.R[rdLo] = uint32(result>>32), uint32(result)
 	if s := inst>>20&0b1 != 0; s {
-		g.SetCPSRFlag(flagZ, result == 0)
+		g.SetCPSRFlag(flagZ, uint32(result) == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rdHi], 31))
 	}
 
@@ -808,7 +830,7 @@ func (g *GBA) armSMLAL(inst uint32) {
 	result := int64(int32(g.R[rs]))*int64(int32(g.R[rm])) + int64(g.R[rdHi])<<32 | int64(g.R[rdLo])
 	g.R[rdHi], g.R[rdLo] = uint32(result>>32), uint32(result)
 	if s := inst>>20&0b1 != 0; s {
-		g.SetCPSRFlag(flagZ, result == 0)
+		g.SetCPSRFlag(flagZ, uint32(result) == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rdHi], 31))
 	}
 

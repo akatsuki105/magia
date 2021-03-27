@@ -156,7 +156,7 @@ func (g *GBA) thumbMovCmpAddSub(inst uint16) {
 	}
 
 	g.SetCPSRFlag(flagN, util.Bit(result, 31))
-	g.SetCPSRFlag(flagZ, result == 0)
+	g.SetCPSRFlag(flagZ, uint32(result) == 0)
 }
 
 func (g *GBA) thumbALU(inst uint16) {
@@ -269,7 +269,7 @@ func (g *GBA) thumbALU(inst uint16) {
 	fmt.Sprintf("%s r%d, r%d\n", mnemonic, rd, rs)
 
 	g.SetCPSRFlag(flagN, util.Bit(result, 31))
-	g.SetCPSRFlag(flagZ, result == 0)
+	g.SetCPSRFlag(flagZ, uint32(result) == 0)
 }
 
 func (g *GBA) thumbHiRegisterBXOperand(r uint16) uint32 {
@@ -300,7 +300,7 @@ func (g *GBA) thumbHiRegisterBX(inst uint16) {
 		fmt.Sprintf("cmp r%d, r%d\n", rd, rs)
 		result := uint64(rdval) - uint64(rsval)
 		g.SetCPSRFlag(flagN, util.Bit(result, 31))
-		g.SetCPSRFlag(flagZ, result == 0)
+		g.SetCPSRFlag(flagZ, uint32(result) == 0)
 		g.SetCPSRFlag(flagC, util.SubC(result))
 		g.SetCPSRFlag(flagV, util.SubV(rdval, rsval, uint32(result)))
 	case 2:

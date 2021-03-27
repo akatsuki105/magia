@@ -79,8 +79,11 @@ func (g *GBA) _setRAM8(addr uint32, b byte) {
 		g.GPU.IO[addr-0x0400_0000] = b
 	case timer.IsIO(addr):
 		g.timers.SetIO(addr-0x0400_0100, b)
-	case addr == ram.DISPCNT || addr == ram.DISPCNT+1 || addr == ram.IME || addr == ram.IME+1 || addr == ram.IME+2 || addr == ram.IME+3:
+	case addr == ram.DISPCNT || addr == ram.DISPCNT+1:
 		g.RAM.Set8(addr, b)
+		g.checkIRQ()
+	case addr == ram.IME || addr == ram.IME+1 || addr == ram.IME+2 || addr == ram.IME+3:
+		g.RAM.Set8(addr, b&0b1)
 		g.checkIRQ()
 	case addr == ram.IF || addr == ram.IF+1:
 		value := byte(g._getRAM(addr))
@@ -88,6 +91,7 @@ func (g *GBA) _setRAM8(addr uint32, b byte) {
 	case addr == ram.HALTCNT:
 		g.halt = true
 	case ram.Palette(addr):
+		// fmt.Printf("BYTE[0x%08x] = %d in 0x%08x\n", addr, b, g.inst.loc)
 		g.GPU.Palette[ram.PaletteOffset(addr)] = b
 	case ram.VRAM(addr):
 		g.GPU.VRAM[ram.VRAMOffset(addr)] = b
