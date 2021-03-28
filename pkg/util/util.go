@@ -9,6 +9,15 @@ import (
 	"strings"
 )
 
+var (
+	Mask [4]uint32 = [4]uint32{
+		0b1111_1111_1111_1111_1111_1111_0000_0000,
+		0b1111_1111_1111_1111_0000_0000_1111_1111,
+		0b1111_1111_0000_0000_1111_1111_1111_1111,
+		0b0000_0000_1111_1111_1111_1111_1111_1111,
+	}
+)
+
 func Contains(list interface{}, target interface{}) bool {
 	if reflect.TypeOf(list).Kind() == reflect.Slice || reflect.TypeOf(list).Kind() == reflect.Array {
 		listvalue := reflect.ValueOf(list)

@@ -7,15 +7,6 @@ import (
 	"mettaur/pkg/util"
 )
 
-var (
-	mask [4]uint32 = [4]uint32{
-		0b1111_1111_1111_1111_1111_1111_0000_0000,
-		0b1111_1111_1111_1111_0000_0000_1111_1111,
-		0b1111_1111_0000_0000_1111_1111_1111_1111,
-		0b0000_0000_1111_1111_1111_1111_1111_1111,
-	}
-)
-
 func (g *GBA) _getRAM(addr uint32) uint32 {
 	switch {
 	case gpu.IsIO(addr):
@@ -77,6 +68,22 @@ func (g *GBA) _setRAM8(addr uint32, b byte) {
 	switch {
 	case gpu.IsIO(addr):
 		g.GPU.IO[addr-0x0400_0000] = b
+	case isDMA0IO(addr):
+		if g.dma[0].set(addr-0x0400_00b0, b) {
+			g.dmaTransfer(dmaImmediate)
+		}
+	case isDMA1IO(addr):
+		if g.dma[1].set(addr-0x0400_00bc, b) {
+			g.dmaTransfer(dmaImmediate)
+		}
+	case isDMA2IO(addr):
+		if g.dma[2].set(addr-0x0400_00c8, b) {
+			g.dmaTransfer(dmaImmediate)
+		}
+	case isDMA3IO(addr):
+		if g.dma[3].set(addr-0x0400_00d4, b) {
+			g.dmaTransfer(dmaImmediate)
+		}
 	case timer.IsIO(addr):
 		g.timers.SetIO(addr-0x0400_0100, b)
 	case addr == ram.DISPCNT || addr == ram.DISPCNT+1:

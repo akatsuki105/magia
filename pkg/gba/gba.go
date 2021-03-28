@@ -51,6 +51,7 @@ type GBA struct {
 	pipe       Pipe
 	debug      Debug
 	timers     timer.Timers
+	dma        [4]DMA
 }
 
 type Pipe struct {
@@ -156,6 +157,7 @@ func (g *GBA) Update() {
 	if util.Bit(dispstat, 3) {
 		g.triggerIRQ(irqVBlank)
 	}
+	g.dmaTransfer(dmaVBlank)
 
 	// line 160~226
 	g.GPU.SetVBlank(true)
@@ -183,6 +185,8 @@ func (g *GBA) scanline() {
 			g.triggerIRQ(irqHBlank)
 		}
 	}
+
+	g.dmaTransfer(dmaHBlank)
 
 	g.GPU.SetHBlank(true)
 	g.exec(1232 - 1006)
