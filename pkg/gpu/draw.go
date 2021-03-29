@@ -1,9 +1,11 @@
 package gpu
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"mettaur/pkg/util"
+	"os"
 )
 
 const (
@@ -14,12 +16,6 @@ const (
 func set(i *image.RGBA, x int, y int, c color.Color) {
 	_, _, _, a := c.RGBA()
 	if a == 0 {
-		return
-	}
-	if x < 0 || x >= 240 {
-		return
-	}
-	if y < 0 || y >= 160 {
 		return
 	}
 	i.Set(x, y, c)
@@ -52,65 +48,24 @@ func (g *GPU) draw0() *image.RGBA {
 	util.FillImage(result, g.bgColor())
 	dispcnt := util.LE16(g.IO[DISPCNT:])
 
-	for bg := 3; bg >= 0; bg-- {
-		prio := int(g.IO[(BG0CNT+2*bg)] & 0b11)
-		for p := 3; p >= 0; p-- {
+	// priority: 0 > 1 > 2 > 3
+	for p := 3; p >= 0; p-- {
+		// if priority equals: BG0 > BG1 > BG2 > BG3
+		for bg := 3; bg >= 0; bg-- {
+			prio := int(g.IO[(BG0CNT+2*bg)] & 0b11)
 			if prio == p {
 				if util.Bit(dispcnt, 8+bg) {
-					g.drawTileBG(result, bg)
+					g.drawTextBG(result, bg)
 				}
 			}
 		}
 	}
+
+	if util.Bit(dispcnt, 12) {
+		g.drawObjs(result)
+	}
+
 	return result
-}
-
-func (g *GPU) drawTileBG(screen *image.RGBA, idx int) {
-	bgCnt := util.LE16(g.IO[BG0CNT+2*idx:])
-	width, height := 256, 256
-	switch (bgCnt >> 14) & 0b11 {
-	case 1:
-		width, height = 512, 256
-	case 2:
-		width, height = 256, 512
-	case 3:
-		width, height = 512, 512
-	}
-	vScreen := image.NewRGBA(image.Rect(0, 0, width, height))
-
-	tileBlock, colorMode, mapBlock := ((uint32(bgCnt)>>2)&0b11)*0x4000, (bgCnt>>7)&0b1, ((uint32(bgCnt)>>8)&0b11111)*0x0800
-
-	for yTile := uint32(0); yTile < 32; yTile++ {
-		for xTile := uint32(0); xTile < 32; xTile++ {
-			mapIdx := yTile*32 + xTile
-			mapData := util.LE16(g.VRAM[(mapBlock + 2*(mapIdx)):])
-			tileIdx, paletteIdx := uint32(mapData&0b0011_1111_1111), int((mapData>>12)&0b1111)
-			if colorMode == color16 {
-				tileData := g.VRAM[tileBlock+32*tileIdx:]
-				for y := uint32(0); y < 8; y++ {
-					for x := uint32(0); x < 8; x += 2 {
-						c := tileData[y*4+x/2]
-						set(vScreen, int(xTile*8+x), int(yTile*8+y), g.paletteColor(paletteIdx, int(c&0b1111)))
-						set(vScreen, int(xTile*8+x+1), int(yTile*8+y), g.paletteColor(paletteIdx, int((c>>4)&0b1111)))
-					}
-				}
-			} else {
-				tileData := g.VRAM[tileBlock+64*tileIdx:]
-				for y := uint32(0); y < 8; y++ {
-					for x := uint32(0); x < 8; x++ {
-						set(vScreen, int(xTile*8+x), int(yTile*8+y), g.paletteColor(-1, int(tileData[y*8+x])))
-					}
-				}
-			}
-		}
-	}
-
-	scrollX, scrollY := int(util.LE16(g.IO[BG0HOFS+idx*4:])), int(util.LE16(g.IO[BG0VOFS+idx*4:]))
-	for y := 0; y < 160; y++ {
-		for x := 0; x < 240; x++ {
-			set(screen, x, y, vScreen.At(x+scrollX, y+scrollY))
-		}
-	}
 }
 
 func (g *GPU) draw1() *image.RGBA {
@@ -118,21 +73,48 @@ func (g *GPU) draw1() *image.RGBA {
 	util.FillImage(result, g.bgColor())
 	dispcnt := util.LE16(g.IO[DISPCNT:])
 
-	for bg := 1; bg >= 0; bg-- {
-		prio := int(g.IO[(BG0CNT+2*bg)] & 0b11)
-		for p := 1; p >= 0; p-- {
+	for p := 3; p >= 0; p-- {
+		for bg := 1; bg >= 0; bg-- {
+			prio := int(g.IO[(BG0CNT+2*bg)] & 0b11)
 			if prio == p {
 				if util.Bit(dispcnt, 8+bg) {
-					g.drawTileBG(result, bg)
+					if bg == 2 {
+						g.drawAffineBG(result, bg)
+					} else {
+						g.drawTextBG(result, bg)
+					}
 				}
 			}
 		}
 	}
+
+	if util.Bit(dispcnt, 12) {
+		g.drawObjs(result)
+	}
+
 	return result
 }
 
 func (g *GPU) draw2() *image.RGBA {
 	result := image.NewRGBA(image.Rect(0, 0, 240, 160))
+	util.FillImage(result, g.bgColor())
+	dispcnt := util.LE16(g.IO[DISPCNT:])
+
+	for p := 3; p >= 0; p-- {
+		for bg := 3; bg >= 2; bg-- {
+			prio := int(g.IO[(BG0CNT+2*bg)] & 0b11)
+			if prio == p {
+				if util.Bit(dispcnt, 8+bg) {
+					g.drawAffineBG(result, bg)
+				}
+			}
+		}
+	}
+
+	if util.Bit(dispcnt, 12) {
+		g.drawObjs(result)
+	}
+
 	return result
 }
 
@@ -169,6 +151,9 @@ func (g *GPU) draw4() *image.RGBA {
 }
 
 func (g *GPU) draw5() *image.RGBA {
+	fmt.Fprintf(os.Stderr, "unsupported BG mode 5\n")
+	panic("")
+
 	result := image.NewRGBA(image.Rect(0, 0, 240, 160))
 	return result
 }

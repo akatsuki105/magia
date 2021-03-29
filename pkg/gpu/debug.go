@@ -5,8 +5,8 @@ import (
 	"mettaur/pkg/util"
 )
 
-func (g *GPU) PrintBGMap0() {
-	bgCnt := util.LE16(g.IO[BG0CNT:])
+func (g *GPU) PrintBGMap(bg int) {
+	bgCnt := util.LE16(g.IO[BG0CNT+2*bg:])
 	mapBlockOfs := ((uint32(bgCnt) >> 8) & 0b11111) * 0x0800
 	_mapBlock := g.VRAM[mapBlockOfs : mapBlockOfs+2*uint32(kb)]
 

@@ -63,7 +63,8 @@ func (g *GBA) thumbExec(inst uint16) {
 	case IsThumbLinkBranch2(inst):
 		g.thumbLinkBranch2(inst)
 	default:
-		fmt.Fprintf(os.Stderr, "invalid opcode(0x%02x) in 0x%04x\n", inst, g.inst.loc)
+		fmt.Fprintf(os.Stderr, "invalid THUMB opcode(0x%04x) in 0x%08x\n", inst, g.inst.loc)
+		panic("")
 	}
 }
 

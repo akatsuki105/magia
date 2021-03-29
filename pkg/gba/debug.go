@@ -14,7 +14,7 @@ type Debug struct {
 }
 
 var breakPoint []uint32 = []uint32{
-	// 0x22c2,
+	// 0xfac,
 }
 
 func (g *GBA) breakpoint() {
@@ -89,8 +89,8 @@ func (g *GBA) printIRQExceptions() {
 	}
 }
 
-func (g *GBA) printBGMap0() {
-	g.GPU.PrintBGMap0()
+func (g *GBA) printBGMap(bg int) {
+	g.GPU.PrintBGMap(bg)
 }
 func (g *GBA) printPalette() {
 	g.GPU.PrintPalette()

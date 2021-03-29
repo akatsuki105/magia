@@ -57,13 +57,15 @@ func (g *GBA) armExec(inst uint32) {
 		case IsArmMSR(inst):
 			g.armMSR(inst)
 		case IsArmSWP(inst):
-			fmt.Fprintf(os.Stderr, "SWI is unsupported in 0x%04x\n", g.inst.loc)
+			fmt.Fprintf(os.Stderr, "SWI is unsupported in 0x%08x\n", g.inst.loc)
+			panic("")
 		case IsArmMPY(inst):
 			g.armMPY(inst)
 		case IsArmALU(inst):
 			g.armALU(inst)
 		default:
-			fmt.Fprintf(os.Stderr, "invalid opcode(0x%04x) in 0x%04x\n", inst, g.inst.loc)
+			fmt.Fprintf(os.Stderr, "invalid ARM opcode(0x%08x) in 0x%08x\n", inst, g.inst.loc)
+			panic("")
 		}
 	}
 }
