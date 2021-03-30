@@ -14,16 +14,10 @@ type Debug struct {
 }
 
 var breakPoint []uint32 = []uint32{
-	0xf8c,
+	// 0xf8c,
 }
 
 func (g *GBA) breakpoint() {
-	if g.R[0] != 0x03000790 {
-		return
-	}
-	if g.R[13] != 0x03007e6c {
-		return
-	}
 	fmt.Printf("Breakpoint: 0x%04x\n", g.inst.loc)
 	g.printRegister()
 	g.printPSR()
