@@ -78,8 +78,6 @@ func Run() ExitCode {
 	if err := ebiten.RunGame(emu); err != nil {
 		fmt.Fprintf(os.Stderr, "crash in emulation: %s\n", err)
 	}
-
-	emu.gba.Exit()
 	return ExitCodeOK
 }
 
@@ -107,6 +105,13 @@ type Emulator struct {
 }
 
 func (e *Emulator) Update() error {
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Fprintf(os.Stderr, "crash in emulation: %s in 0x%08x\n", err, e.gba.PC())
+			e.gba.Exit("")
+			panic("")
+		}
+	}()
 	e.gba.Update()
 	return nil
 }

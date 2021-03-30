@@ -7,16 +7,17 @@ import (
 )
 
 func (g *GBA) thumbStep() {
+	pc := util.Align2(g.R[15])
 	g.pipe.inst[1] = Inst{
-		inst: uint32(g.getRAM16(g.R[15], true)),
-		loc:  g.R[15],
+		inst: uint32(g.getRAM16(pc, true)),
+		loc:  pc,
 	}
 	g.thumbExec(uint16(g.inst.inst))
 	if g.pipe.ok {
 		g.pipe.ok = false
 		return
 	}
-	g.R[15] += 2
+	g.R[15] = pc + 2
 }
 
 func (g *GBA) thumbExec(inst uint16) {
@@ -64,7 +65,7 @@ func (g *GBA) thumbExec(inst uint16) {
 		g.thumbLinkBranch2(inst)
 	default:
 		fmt.Fprintf(os.Stderr, "invalid THUMB opcode(0x%04x) in 0x%08x\n", inst, g.inst.loc)
-		panic("")
+		g.Exit("")
 	}
 }
 

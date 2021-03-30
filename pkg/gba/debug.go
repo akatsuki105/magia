@@ -13,20 +13,26 @@ const (
 type Debug struct {
 }
 
-var breakPoint []uint32 = []uint32{
-	// 0xf8c,
+type History struct {
+	inst Inst
+	reg  Reg
 }
+
+// 0: oldest -> 9: newest
+var histories [10]History = [10]History{}
+
+var breakPoint []uint32 = []uint32{}
 
 func (g *GBA) breakpoint() {
 	fmt.Printf("Breakpoint: 0x%04x\n", g.inst.loc)
-	g.printRegister()
-	g.printPSR()
+	printRegister(g.Reg)
+	printPSR(g.Reg)
 	g.printLCD()
 	fmt.Println()
 
 	counter++
 	// if counter == 1 {
-	// 	panic("")
+	// 	g.Exit("")
 	// }
 }
 
@@ -39,11 +45,13 @@ func (g *GBA) thumbInst(inst uint16) {
 		fmt.Printf("Thumb pc, inst, cycle: 0x%04x, 0x%02x, %d:%d\n", g.inst.loc, inst, g.line, g.cycle)
 	}
 }
+
 func (g *GBA) armInst(inst uint32) {
 	if inst != 0 {
 		fmt.Printf("ARM pc, inst, cycle: 0x%04x, 0x%04x, %d:%d\n", g.inst.loc, inst, g.line, g.cycle)
 	}
 }
+
 func (g *GBA) printInst(inst uint32) {
 	if inst != 0 {
 		t := g.GetCPSRFlag(flagT)
@@ -96,11 +104,8 @@ func (g *GBA) printPalette() {
 	g.GPU.PrintPalette()
 }
 
-func (g *GBA) exitDebug() {
-}
-
-func (g *GBA) printCPSRFlag() string {
-	n, z, c, v, i, f, t := g.GetCPSRFlag(flagN), g.GetCPSRFlag(flagZ), g.GetCPSRFlag(flagC), g.GetCPSRFlag(flagV), g.GetCPSRFlag(flagI), g.GetCPSRFlag(flagF), g.GetCPSRFlag(flagT)
+func printCPSRFlag(r Reg) string {
+	n, z, c, v, i, f, t := r.GetCPSRFlag(flagN), r.GetCPSRFlag(flagZ), r.GetCPSRFlag(flagC), r.GetCPSRFlag(flagV), r.GetCPSRFlag(flagI), r.GetCPSRFlag(flagF), r.GetCPSRFlag(flagT)
 	result := "["
 	if n {
 		result += "N"
@@ -140,31 +145,31 @@ func (g *GBA) printCPSRFlag() string {
 	return result + "]"
 }
 
-func (g *GBA) printPSR() {
+func printPSR(r Reg) {
 	str := ` CPSR: 0x%08x %s SPSR_fiq: 0x%08x SPSR_svc: 0x%08x SPSR_abt: 0x%08x SPSR_irq: 0x%08x SPSR_und: 0x%08x
 `
-	fmt.Printf(str, g.CPSR, g.printCPSRFlag(), g.SPSRBank[0], g.SPSRBank[1], g.SPSRBank[2], g.SPSRBank[3], g.SPSRBank[4])
+	fmt.Printf(str, r.CPSR, printCPSRFlag(r), r.SPSRBank[0], r.SPSRBank[1], r.SPSRBank[2], r.SPSRBank[3], r.SPSRBank[4])
 }
 
-func (g *GBA) printR13Bank() {
+func (g *GBA) printR13Bank(r Reg) {
 	str := ` R13_fiq: 0x%08x R13_svc: 0x%08x R13_abt: 0x%08x R13_irq: 0x%08x R13_und: 0x%08x R13_usr: 0x%08x
 `
-	fmt.Printf(str, g.R13Bank[0], g.R13Bank[1], g.R13Bank[2], g.R13Bank[3], g.R13Bank[4], g.R13Bank[5])
+	fmt.Printf(str, r.R13Bank[0], r.R13Bank[1], r.R13Bank[2], r.R13Bank[3], r.R13Bank[4], r.R13Bank[5])
 }
 
-func (g *GBA) printR14Bank() {
+func (g *GBA) printR14Bank(r Reg) {
 	str := ` R14_fiq: 0x%08x R14_svc: 0x%08x R14_abt: 0x%08x R14_irq: 0x%08x R14_und: 0x%08x R14_usr: 0x%08x
 `
-	fmt.Printf(str, g.R14Bank[0], g.R14Bank[1], g.R14Bank[2], g.R14Bank[3], g.R14Bank[4], g.R14Bank[5])
+	fmt.Printf(str, r.R14Bank[0], r.R14Bank[1], r.R14Bank[2], r.R14Bank[3], r.R14Bank[4], r.R14Bank[5])
 }
 
-func (g *GBA) printRegister() {
+func printRegister(r Reg) {
 	str := ` r0: %08x   r1: %08x   r2: %08x   r3: %08x
  r4: %08x   r5: %08x   r6: %08x   r7: %08x
  r8: %08x   r9: %08x  r10: %08x  r11: %08x
  r12: %08x  r13: %08x  r14: %08x  r15: %08x
 `
-	fmt.Printf(str, g.R[0], g.R[1], g.R[2], g.R[3], g.R[4], g.R[5], g.R[6], g.R[7], g.R[8], g.R[9], g.R[10], g.R[11], g.R[12], g.R[13], g.R[14], g.R[15])
+	fmt.Printf(str, r.R[0], r.R[1], r.R[2], r.R[3], r.R[4], r.R[5], r.R[6], r.R[7], r.R[8], r.R[9], r.R[10], r.R[11], r.R[12], r.R[13], r.R[14], r.R[15])
 }
 
 func (g *GBA) printLCD() {
@@ -194,6 +199,9 @@ func (g *GBA) printSWI(nn byte) {
 func (g *GBA) printPC() {
 	fmt.Printf(" PC: %04x\n", g.pipe.inst[0].loc)
 }
+func (g *GBA) PC() uint32 {
+	return g.inst.loc
+}
 
 func (g *GBA) printIRQRegister() {
 	str := ` IME: %d IE: %02x IF: %02x
@@ -204,4 +212,29 @@ func (g *GBA) printIRQRegister() {
 func (g *GBA) printRAM(addr uint32) {
 	value := g._getRAM(addr)
 	fmt.Printf("Word[0x%08x] => 0x%08x\n", addr, value)
+}
+
+func (g *GBA) pushHistory() {
+	if g.inst.inst == 0 {
+		return
+	}
+	if g.inst.loc == histories[9].inst.loc {
+		return
+	}
+
+	for i := 9; i >= 1; i-- {
+		histories[i-1] = histories[i]
+	}
+
+	histories[9] = History{
+		inst: g.inst,
+		reg:  g.Reg,
+	}
+}
+
+// PrintHistory print out histories
+func PrintHistory() {
+	for i, h := range histories {
+		fmt.Printf("%d: 0x%08x in 0x%08x\n", i, h.inst.inst, h.inst.loc)
+	}
 }

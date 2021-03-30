@@ -14,16 +14,17 @@ const (
 )
 
 func (g *GBA) armStep() {
+	pc := util.Align2(g.R[15])
 	g.pipe.inst[1] = Inst{
-		inst: g.getRAM32(g.R[15], true),
-		loc:  g.R[15],
+		inst: g.getRAM32(pc, true),
+		loc:  pc,
 	}
 	g.armExec(g.inst.inst)
 	if g.pipe.ok {
 		g.pipe.ok = false
 		return
 	}
-	g.R[15] += 4
+	g.R[15] = pc + 4
 }
 
 func (g *GBA) armExec(inst uint32) {
@@ -58,14 +59,14 @@ func (g *GBA) armExec(inst uint32) {
 			g.armMSR(inst)
 		case IsArmSWP(inst):
 			fmt.Fprintf(os.Stderr, "SWI is unsupported in 0x%08x\n", g.inst.loc)
-			panic("")
+			g.Exit("")
 		case IsArmMPY(inst):
 			g.armMPY(inst)
 		case IsArmALU(inst):
 			g.armALU(inst)
 		default:
 			fmt.Fprintf(os.Stderr, "invalid ARM opcode(0x%08x) in 0x%08x\n", inst, g.inst.loc)
-			panic("")
+			g.Exit("")
 		}
 	}
 }

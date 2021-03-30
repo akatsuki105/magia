@@ -1,6 +1,7 @@
 package gba
 
 import (
+	"fmt"
 	"image"
 	"mettaur/pkg/cart"
 	"mettaur/pkg/gpu"
@@ -77,8 +78,11 @@ func New(src []byte) *GBA {
 	return g
 }
 
-func (g *GBA) Exit() {
-	g.exitDebug()
+func (g *GBA) Exit(s string) {
+	fmt.Printf("Exit: %s\n", s)
+	PrintHistory()
+	printRegister(g.Reg)
+	panic("")
 }
 
 func (g *GBA) exec(cycles int) {
@@ -101,6 +105,7 @@ var counter = 0
 func (g *GBA) step() {
 	g.inst = g.pipe.inst[0]
 	g.pipe.inst[0] = g.pipe.inst[1]
+	g.pushHistory()
 
 	for _, bk := range breakPoint {
 		if g.inst.loc == bk {
@@ -229,6 +234,7 @@ func (g *GBA) triggerIRQ(irq int) {
 
 func (g *GBA) pipelining() {
 	t := g.GetCPSRFlag(flagT)
+	g.R[15] = util.Align2(g.R[15])
 	if t {
 		g.pipe.inst[0] = Inst{
 			inst: uint32(g.getRAM16(g.R[15], false)),

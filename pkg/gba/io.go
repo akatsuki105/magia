@@ -1,10 +1,12 @@
 package gba
 
 import (
+	"fmt"
 	"mettaur/pkg/gpu"
 	"mettaur/pkg/ram"
 	"mettaur/pkg/timer"
 	"mettaur/pkg/util"
+	"strings"
 )
 
 func (g *GBA) _getRAM(addr uint32) uint32 {
@@ -65,6 +67,17 @@ func (g *GBA) setRAM8(addr uint32, b byte, s bool) {
 }
 
 func (g *GBA) _setRAM8(addr uint32, b byte) {
+	defer func() {
+		if err := recover(); err != nil {
+			s := fmt.Sprintln(err)
+			if strings.Contains(s, "runtime error: index out of range") {
+				msg := fmt.Sprintf("access to 0x%08x(%v)", addr, err)
+				panic(msg)
+			}
+			panic(err)
+		}
+	}()
+
 	switch {
 	case gpu.IsIO(addr):
 		g.GPU.IO[addr-0x0400_0000] = b

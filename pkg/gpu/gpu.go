@@ -71,7 +71,7 @@ type RAM struct {
 
 // IsIO returns true if addr is for GPU IO register.
 func IsIO(addr uint32) bool {
-	return (addr >= 0x0400_0000) && (addr <= 0x0400_0000+0x60)
+	return (addr >= 0x0400_0000) && (addr < 0x0400_0000+0x60)
 }
 
 // VBlank returns true if in VBlank
