@@ -4,9 +4,9 @@ import (
 	"mettaur/pkg/util"
 )
 
-func (g *GBA) armLSL(val uint32, is uint32, carryVariable bool) uint32 {
+func (g *GBA) armLSL(val uint32, is uint32, carryVariable bool, imm bool) uint32 {
 	switch {
-	case is == 0:
+	case is == 0 && imm:
 		return val
 	case is > 32:
 		if carryVariable {
@@ -22,8 +22,8 @@ func (g *GBA) armLSL(val uint32, is uint32, carryVariable bool) uint32 {
 	}
 }
 
-func (g *GBA) armLSR(val uint32, is uint32, carryVariable bool) uint32 {
-	if is == 0 {
+func (g *GBA) armLSR(val uint32, is uint32, carryVariable bool, imm bool) uint32 {
+	if is == 0 && imm {
 		is = 32
 	}
 	carry := util.ToBool(val & (1 << (is - 1)))
@@ -33,8 +33,8 @@ func (g *GBA) armLSR(val uint32, is uint32, carryVariable bool) uint32 {
 	return util.LSR(val, uint(is))
 }
 
-func (g *GBA) armASR(val uint32, is uint32, carryVariable bool) uint32 {
-	if is == 0 || is > 32 {
+func (g *GBA) armASR(val uint32, is uint32, carryVariable bool, imm bool) uint32 {
+	if is == 0 && imm {
 		is = 32
 	}
 	carry := util.ToBool(val & (1 << (is - 1)))
@@ -44,8 +44,8 @@ func (g *GBA) armASR(val uint32, is uint32, carryVariable bool) uint32 {
 	return util.ASR(val, uint(is))
 }
 
-func (g *GBA) armROR(val uint32, is uint32, carryVariable bool) uint32 {
-	if is == 0 {
+func (g *GBA) armROR(val uint32, is uint32, carryVariable bool, imm bool) uint32 {
+	if is == 0 && imm {
 		c := uint32(0)
 		if g.GetCPSRFlag(flagC) {
 			c = 1

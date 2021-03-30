@@ -73,13 +73,13 @@ func (g *GBA) thumbShift(inst uint16) {
 	switch opcode := (inst >> 11) & 0b11; opcode {
 	case 0:
 		fmt.Sprintf("lsl r%d, r%d, #%d\n", rd, rs, is)
-		g.R[rd] = g.armLSL(g.R[rs], is, true)
+		g.R[rd] = g.armLSL(g.R[rs], is, true, true)
 	case 1:
 		fmt.Sprintf("lsr r%d, r%d, #%d\n", rd, rs, is)
-		g.R[rd] = g.armLSR(g.R[rs], is, true)
+		g.R[rd] = g.armLSR(g.R[rs], is, true, true)
 	case 2:
 		fmt.Sprintf("asr r%d, r%d, #%d\n", rd, rs, is)
-		g.R[rd] = g.armASR(g.R[rs], is, true)
+		g.R[rd] = g.armASR(g.R[rs], is, true, true)
 	}
 
 	g.SetCPSRFlag(flagZ, g.R[rd] == 0)
@@ -181,19 +181,22 @@ func (g *GBA) thumbALU(inst uint16) {
 	case 2:
 		// LSL
 		mnemonic = "lsl"
-		g.R[rd] = g.armLSL(g.R[rd], g.R[rs]&0xff, true) // Rd = Rd << (Rs AND 0FFh)
+		is := g.R[rs] & 0xff
+		g.R[rd] = g.armLSL(g.R[rd], is, is > 0, false) // Rd = Rd << (Rs AND 0FFh)
 		result = uint64(g.R[rd])
 		g.timer(1)
 	case 3:
 		// LSR
 		mnemonic = "lsr"
-		g.R[rd] = g.armLSR(g.R[rd], g.R[rs]&0xff, true) // Rd = Rd >> (Rs AND 0FFh)
+		is := g.R[rs] & 0xff
+		g.R[rd] = g.armLSR(g.R[rd], is, is > 0, false) // Rd = Rd >> (Rs AND 0FFh)
 		result = uint64(g.R[rd])
 		g.timer(1)
 	case 4:
 		// ASR
 		mnemonic = "asr"
-		g.R[rd] = g.armASR(g.R[rd], g.R[rs]&0xff, true) // Rd = Rd >> (Rs AND 0FFh)
+		is := g.R[rs] & 0xff
+		g.R[rd] = g.armASR(g.R[rd], is, is > 0, false) // Rd = Rd >> (Rs AND 0FFh)
 		result = uint64(g.R[rd])
 		g.timer(1)
 	case 5:
@@ -213,7 +216,8 @@ func (g *GBA) thumbALU(inst uint16) {
 	case 7:
 		// ROR
 		mnemonic = "ror"
-		g.R[rd] = g.armROR(g.R[rd], g.R[rs]&0xff, true) // Rd = Rd ROR (Rs AND 0FFh)
+		is := g.R[rs] & 0xff
+		g.R[rd] = g.armROR(g.R[rd], is, is > 0, false) // Rd = Rd ROR (Rs AND 0FFh)
 		result = uint64(g.R[rd])
 		g.timer(1)
 	case 8:

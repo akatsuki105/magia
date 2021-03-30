@@ -270,13 +270,13 @@ func (g *GBA) armRegShiftOffset(inst uint32) uint32 {
 		rm := inst & 0b1111
 		switch shiftType {
 		case lsl:
-			ofs = g.armLSL(g.R[rm], is, false)
+			ofs = g.armLSL(g.R[rm], is, false, true)
 		case lsr:
-			ofs = g.armLSR(g.R[rm], is, false)
+			ofs = g.armLSR(g.R[rm], is, false, true)
 		case asr:
-			ofs = g.armASR(g.R[rm], is, false)
+			ofs = g.armASR(g.R[rm], is, false, true)
 		case ror:
-			ofs = g.armROR(g.R[rm], is, false)
+			ofs = g.armROR(g.R[rm], is, false, true)
 		}
 	} else {
 		ofs = inst & 0b1111_1111_1111 // I = 0 immediate
@@ -370,7 +370,8 @@ func (g *GBA) armALUOp2(inst uint32) uint32 {
 		rm := inst & 0b1111
 
 		salt := uint32(0)
-		if isRegister := (inst >> 4) & 0b1; util.ToBool(isRegister) {
+		isRegister := util.ToBool((inst >> 4) & 0b1)
+		if isRegister {
 			g.timer(1)
 			is = g.R[(inst>>8)&0b1111] & 0b1111_1111
 			if rm == 15 {
@@ -381,13 +382,13 @@ func (g *GBA) armALUOp2(inst uint32) uint32 {
 		carryVariable := (inst>>20)&0b1 == 1
 		switch shiftType := (inst >> 5) & 0b11; shiftType {
 		case lsl:
-			return g.armLSL(g.R[rm]+salt, is, carryVariable)
+			return g.armLSL(g.R[rm]+salt, is, carryVariable, !isRegister)
 		case lsr:
-			return g.armLSR(g.R[rm]+salt, is, carryVariable)
+			return g.armLSR(g.R[rm]+salt, is, carryVariable, !isRegister)
 		case asr:
-			return g.armASR(g.R[rm]+salt, is, carryVariable)
+			return g.armASR(g.R[rm]+salt, is, carryVariable, !isRegister)
 		case ror:
-			return g.armROR(g.R[rm]+salt, is, carryVariable)
+			return g.armROR(g.R[rm]+salt, is, carryVariable, !isRegister)
 		}
 		return g.R[rm] + salt
 	}
