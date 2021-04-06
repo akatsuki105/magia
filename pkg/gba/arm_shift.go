@@ -14,7 +14,7 @@ func (g *GBA) armLSL(val uint32, is uint32, carryVariable bool, imm bool) uint32
 		}
 		return 0
 	default:
-		carry := util.ToBool(val & (1 << (32 - is)))
+		carry := val&(1<<(32-is)) > 0
 		if carryVariable {
 			g.SetCPSRFlag(flagC, carry)
 		}
@@ -26,7 +26,7 @@ func (g *GBA) armLSR(val uint32, is uint32, carryVariable bool, imm bool) uint32
 	if is == 0 && imm {
 		is = 32
 	}
-	carry := util.ToBool(val & (1 << (is - 1)))
+	carry := val&(1<<(is-1)) > 0
 	if carryVariable {
 		g.SetCPSRFlag(flagC, carry)
 	}
@@ -37,7 +37,7 @@ func (g *GBA) armASR(val uint32, is uint32, carryVariable bool, imm bool) uint32
 	if is == 0 && imm {
 		is = 32
 	}
-	carry := util.ToBool(val & (1 << (is - 1)))
+	carry := val&(1<<(is-1)) > 0
 	if carryVariable {
 		g.SetCPSRFlag(flagC, carry)
 	}
@@ -52,7 +52,7 @@ func (g *GBA) armROR(val uint32, is uint32, carryVariable bool, imm bool) uint32
 		}
 		return util.ROR(((val & ^(uint32(1))) | c), 1)
 	}
-	carry := util.ToBool(val >> (is - 1) & 0b1)
+	carry := val>>(is-1)&0b1 > 0
 	if carryVariable {
 		g.SetCPSRFlag(flagC, carry)
 	}

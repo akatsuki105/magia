@@ -54,6 +54,22 @@ func (t *Timer) overflow() bool {
 func IsIO(addr uint32) bool {
 	return (addr >= 0x0400_0100) && (addr < 0x0400_0110)
 }
+func (ts *Timers) GetIO(offset uint32) uint32 {
+	idx := offset / 4
+	ofs := offset % 4
+	switch ofs {
+	case 0:
+		return uint32(ts[idx].Count)
+	case 1:
+		return uint32(ts[idx].Count >> 8)
+	case 2:
+		return uint32(ts[idx].Control)
+	case 3:
+		return 0
+	}
+	return 0
+}
+
 func (ts *Timers) SetIO(offset uint32, b byte) {
 	idx := offset / 4
 	ofs := offset % 4

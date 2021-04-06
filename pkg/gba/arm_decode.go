@@ -1,6 +1,8 @@
 package gba
 
-import "mettaur/pkg/util"
+import (
+	"mettaur/pkg/util"
+)
 
 // IsArmALU returns instruction is arithmetic instruction
 // 27-26: 00
@@ -77,7 +79,7 @@ func IsArmSTR(inst uint32) bool {
 // 27-25: 000
 func IsArmLDRH(inst uint32) bool {
 	cond1 := !util.Bit(inst, 27) && !util.Bit(inst, 26) && !util.Bit(inst, 25)
-	cond2 := !util.Bit(inst, 11) && !util.Bit(inst, 10) && !util.Bit(inst, 9) && !util.Bit(inst, 8) && util.Bit(inst, 7)
+	cond2 := util.Bit(inst, 7)
 	cond3 := util.Bit(inst, 4)
 	condLDRH := util.Bit(inst, 20) && !util.Bit(inst, 6) && util.Bit(inst, 5)
 	return cond1 && cond2 && cond3 && condLDRH
@@ -87,7 +89,7 @@ func IsArmLDRH(inst uint32) bool {
 // 27-25: 000
 func IsArmLDRSB(inst uint32) bool {
 	cond1 := !util.Bit(inst, 27) && !util.Bit(inst, 26) && !util.Bit(inst, 25)
-	cond2 := !util.Bit(inst, 11) && !util.Bit(inst, 10) && !util.Bit(inst, 9) && !util.Bit(inst, 8) && util.Bit(inst, 7)
+	cond2 := util.Bit(inst, 7)
 	cond3 := util.Bit(inst, 4)
 	condLDRSB := util.Bit(inst, 20) && util.Bit(inst, 6) && !util.Bit(inst, 5)
 	return cond1 && cond2 && cond3 && condLDRSB
@@ -97,7 +99,7 @@ func IsArmLDRSB(inst uint32) bool {
 // 27-25: 000
 func IsArmLDRSH(inst uint32) bool {
 	cond1 := !util.Bit(inst, 27) && !util.Bit(inst, 26) && !util.Bit(inst, 25)
-	cond2 := !util.Bit(inst, 11) && !util.Bit(inst, 10) && !util.Bit(inst, 9) && !util.Bit(inst, 8) && util.Bit(inst, 7)
+	cond2 := util.Bit(inst, 7)
 	cond3 := util.Bit(inst, 4)
 	condLDRSH := util.Bit(inst, 20) && util.Bit(inst, 6) && util.Bit(inst, 5)
 	return cond1 && cond2 && cond3 && condLDRSH
@@ -107,7 +109,7 @@ func IsArmLDRSH(inst uint32) bool {
 // 27-25: 000
 func IsArmSTRH(inst uint32) bool {
 	cond1 := !util.Bit(inst, 27) && !util.Bit(inst, 26) && !util.Bit(inst, 25)
-	cond2 := !util.Bit(inst, 11) && !util.Bit(inst, 10) && !util.Bit(inst, 9) && !util.Bit(inst, 8) && util.Bit(inst, 7)
+	cond2 := util.Bit(inst, 7)
 	cond3 := util.Bit(inst, 4)
 	condSTRH := !util.Bit(inst, 20) && !util.Bit(inst, 6) && util.Bit(inst, 5)
 	return cond1 && cond2 && cond3 && condSTRH
@@ -117,8 +119,11 @@ func IsArmSTRH(inst uint32) bool {
 
 // IsArmStack returns instruction is push/pop instruction
 // 27-25: 100
-func IsArmStack(inst uint32) bool {
-	return util.Bit(inst, 27) && !util.Bit(inst, 26) && !util.Bit(inst, 25) // 100
+func IsArmLDM(inst uint32) bool {
+	return util.Bit(inst, 27) && !util.Bit(inst, 26) && !util.Bit(inst, 25) && util.Bit(inst, 20) // 100
+}
+func IsArmSTM(inst uint32) bool {
+	return util.Bit(inst, 27) && !util.Bit(inst, 26) && !util.Bit(inst, 25) && !util.Bit(inst, 20) // 100
 }
 
 // data swap

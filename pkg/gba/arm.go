@@ -35,12 +35,10 @@ func (g *GBA) armExec(inst uint32) {
 			g.armSWI(inst)
 		case IsArmBranch(inst) || IsArmBX(inst):
 			g.armBranch(inst)
-		case IsArmStack(inst):
-			if util.Bit(inst, 20) {
-				g.armLDM(inst)
-			} else {
-				g.armSTM(inst)
-			}
+		case IsArmLDM(inst):
+			g.armLDM(inst)
+		case IsArmSTM(inst):
+			g.armSTM(inst)
 		case IsArmLDR(inst):
 			g.armLDR(inst)
 		case IsArmSTR(inst):
@@ -371,7 +369,7 @@ func (g *GBA) armALUOp2(inst uint32) uint32 {
 		rm := inst & 0b1111
 
 		salt := uint32(0)
-		isRegister := util.ToBool((inst >> 4) & 0b1)
+		isRegister := (inst>>4)&0b1 > 0
 		if isRegister {
 			g.timer(1)
 			is = g.R[(inst>>8)&0b1111] & 0b1111_1111
@@ -863,6 +861,15 @@ func (g *GBA) armLDRH(inst uint32) {
 		}
 	}
 	g.R[rd] = uint32(g.getRAM16(addr, false))
+	if !pre {
+		// Post-indexing
+		if plus := util.Bit(inst, 23); plus {
+			addr += ofs
+		} else {
+			addr -= ofs
+		}
+		g.R[rn] = addr // Post-indexing, write-back is ALWAYS enabled
+	}
 	if rd == 15 {
 		g.pipelining()
 	}
@@ -891,6 +898,15 @@ func (g *GBA) armLDRSB(inst uint32) {
 		}
 	}
 	g.R[rd] = uint32(int8(g.getRAM8(addr, false)))
+	if !pre {
+		// Post-indexing
+		if plus := util.Bit(inst, 23); plus {
+			addr += ofs
+		} else {
+			addr -= ofs
+		}
+		g.R[rn] = addr // Post-indexing, write-back is ALWAYS enabled
+	}
 	if rd == 15 {
 		g.pipelining()
 	}
@@ -919,6 +935,15 @@ func (g *GBA) armLDRSH(inst uint32) {
 		}
 	}
 	g.R[rd] = uint32(int16(g.getRAM16(addr, false)))
+	if !pre {
+		// Post-indexing
+		if plus := util.Bit(inst, 23); plus {
+			addr += ofs
+		} else {
+			addr -= ofs
+		}
+		g.R[rn] = addr // Post-indexing, write-back is ALWAYS enabled
+	}
 	if rd == 15 {
 		g.pipelining()
 	}
@@ -947,6 +972,15 @@ func (g *GBA) armSTRH(inst uint32) {
 		}
 	}
 	g.setRAM16(addr, uint16(g.R[rd]), false)
+	if !pre {
+		// Post-indexing
+		if plus := util.Bit(inst, 23); plus {
+			addr += ofs
+		} else {
+			addr -= ofs
+		}
+		g.R[rn] = addr // Post-indexing, write-back is ALWAYS enabled
+	}
 	g.timer(g.cycleS2N())
 }
 

@@ -54,37 +54,6 @@ func FormatSize(s uint) string {
 	}
 }
 
-// ToBool converts value to boolean
-func ToBool(val interface{}) bool {
-	switch val := val.(type) {
-	case bool:
-		return val
-	case int:
-		return !(val == 0)
-	case int8:
-		return !(val == 0)
-	case int16:
-		return !(val == 0)
-	case int32:
-		return !(val == 0)
-	case int64:
-		return !(val == 0)
-	case uint:
-		return !(val == 0)
-	case uint8:
-		return !(val == 0)
-	case uint16:
-		return !(val == 0)
-	case uint32:
-		return !(val == 0)
-	case uint64:
-		return !(val == 0)
-	case string:
-		return len(val) > 0
-	}
-	return false
-}
-
 // BoolToInt converts boolean to int
 func BoolToInt(b bool) int {
 	if b {
@@ -150,7 +119,7 @@ func AddV(lhs, rhs, res uint32) bool {
 
 func SubV(lhs, rhs, res uint32) bool {
 	v := (lhs ^ rhs) & (lhs ^ res) & 0x8000_0000
-	return ToBool(v)
+	return v > 0
 }
 
 func Align4(val uint32) uint32 {

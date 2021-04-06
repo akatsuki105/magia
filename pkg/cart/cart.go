@@ -1,5 +1,7 @@
 package cart
 
+import "fmt"
+
 // Header represents GBA Cartridge header
 type Header struct {
 	Entry     [4]byte
@@ -16,4 +18,11 @@ func New(src []byte) *Header {
 		GameCode:  string(src[0xac : 0xac+4]),
 		MakerCode: string(src[0xb0 : 0xb0+2]),
 	}
+}
+
+func (h *Header) String() string {
+	str := `Title: %s
+GameCode: %s
+MakerCode: %s`
+	return fmt.Sprintf(str, h.Title, h.GameCode, h.MakerCode)
 }

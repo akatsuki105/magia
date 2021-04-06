@@ -5,6 +5,7 @@ import (
 	"image"
 	"mettaur/pkg/cart"
 	"mettaur/pkg/gpu"
+	"mettaur/pkg/joypad"
 	"mettaur/pkg/ram"
 	"mettaur/pkg/timer"
 	"mettaur/pkg/util"
@@ -20,6 +21,8 @@ const (
 	irqVec           uint32 = 0x18
 	fiqVec           uint32 = 0x1c
 )
+
+type IRQID int
 
 const (
 	irqVBlank  = 0x00
@@ -50,9 +53,9 @@ type GBA struct {
 	line       int
 	halt       bool
 	pipe       Pipe
-	debug      Debug
 	timers     timer.Timers
-	dma        [4]DMA
+	dma        [4]*DMA
+	joypad     joypad.Joypad
 }
 
 type Pipe struct {
@@ -72,7 +75,7 @@ func New(src []byte) *GBA {
 		GPU:        *gpu.New(),
 		CartHeader: cart.New(src),
 		RAM:        *ram.New(src),
-		debug:      Debug{},
+		dma:        NewDMA(),
 	}
 	g._setRAM16(ram.KEYINPUT, 0x3ff)
 	return g
@@ -80,8 +83,9 @@ func New(src []byte) *GBA {
 
 func (g *GBA) Exit(s string) {
 	fmt.Printf("Exit: %s\n", s)
-	PrintHistory()
-	printRegister(g.Reg)
+	if debug {
+		g.PrintHistory()
+	}
 	panic("")
 }
 
@@ -105,11 +109,13 @@ var counter = 0
 func (g *GBA) step() {
 	g.inst = g.pipe.inst[0]
 	g.pipe.inst[0] = g.pipe.inst[1]
-	g.pushHistory()
 
-	for _, bk := range breakPoint {
-		if g.inst.loc == bk {
-			g.breakpoint()
+	if debug {
+		g.pushHistory()
+		for _, bk := range breakPoint {
+			if g.inst.loc == bk {
+				g.breakpoint()
+			}
 		}
 	}
 
@@ -136,7 +142,7 @@ func (g *GBA) exception(addr uint32, mode Mode) {
 	g.setOSMode(mode)
 	g.setSPSR(cpsr)
 
-	g.R[14] = g.inst.loc + g.exceptionNN(addr)
+	g.R[14] = g.exceptionReturn(addr)
 	g.SetCPSRFlag(flagT, false)
 	g.SetCPSRFlag(flagI, true)
 	switch addr & 0xff {
@@ -162,10 +168,10 @@ func (g *GBA) Update() {
 	if util.Bit(dispstat, 3) {
 		g.triggerIRQ(irqVBlank)
 	}
-	g.dmaTransfer(dmaVBlank)
 
 	// line 160~226
 	g.GPU.SetVBlank(true)
+	g.dmaTransfer(dmaVBlank)
 	for y := 0; y < 67; y++ {
 		g.scanline()
 	}
@@ -174,13 +180,14 @@ func (g *GBA) Update() {
 	// line 227
 	g.scanline()
 
+	if g.frame%2 == 0 {
+		g.joypad.Read()
+	}
+
 	g.frame++
 }
 
 func (g *GBA) scanline() {
-	g.RAM.IO[0x130] = 0xff
-	g.RAM.IO[0x131] = 0x03
-
 	dispstat := uint16(g._getRAM(ram.DISPSTAT))
 	g.exec(1006)
 
@@ -191,14 +198,14 @@ func (g *GBA) scanline() {
 		}
 	}
 
-	g.dmaTransfer(dmaHBlank)
-
 	g.GPU.SetHBlank(true)
+	g.dmaTransfer(dmaHBlank)
 	g.exec(1232 - 1006)
 	g.GPU.SetHBlank(false)
 
 	vCount := g.GPU.IncrementVCount()
-	if vCount == byte(g._getRAM(ram.DISPSTAT+1)) {
+	lyc := byte(g._getRAM(ram.DISPSTAT + 1))
+	if vCount == lyc {
 		if util.Bit(dispstat, 5) {
 			g.triggerIRQ(irqVCount)
 		}
@@ -214,14 +221,14 @@ func (g *GBA) Draw() *image.RGBA {
 
 func (g *GBA) checkIRQ() {
 	cond1 := !g.GetCPSRFlag(flagI)
-	cond2 := util.ToBool(g._getRAM(ram.IME) & 0b1)
-	cond3 := util.ToBool(uint16(g._getRAM(ram.IE)) & uint16(g._getRAM(ram.IF)))
+	cond2 := g._getRAM(ram.IME)&0b1 > 0
+	cond3 := uint16(g._getRAM(ram.IE))&uint16(g._getRAM(ram.IF)) > 0
 	if cond1 && cond2 && cond3 {
 		g.exception(irqVec, IRQ)
 	}
 }
 
-func (g *GBA) triggerIRQ(irq int) {
+func (g *GBA) triggerIRQ(irq IRQID) {
 	// if |= flag
 	iack := uint16(g._getRAM(ram.IF))
 	iack = iack | (1 << irq)
@@ -229,6 +236,11 @@ func (g *GBA) triggerIRQ(irq int) {
 	g.RAM.IO[ram.IOOffset(ram.IF+1)] = byte(iack >> 8)
 
 	g.halt = false
+	g.pushIRQHistory(IRQHistory{
+		irq:   irq,
+		start: g.inst.loc,
+		reg:   g.Reg,
+	})
 	g.checkIRQ()
 }
 
@@ -287,20 +299,27 @@ func (g *GBA) cycleS2N() int {
 * UND  $+4  $+2
 * SVC  $+4  $+2
  */
-func (g *GBA) exceptionNN(vec uint32) uint32 {
-	nn := uint32(0)
+func (g *GBA) exceptionReturn(vec uint32) uint32 {
+	pc := g.R[15]
+
 	t := g.GetCPSRFlag(flagT)
 	switch vec {
-	case dataAbortVec:
-		nn = 8
+	case undVec, swiVec:
+		if t {
+			pc -= 2
+		} else {
+			pc -= 4
+		}
 	case fiqVec, irqVec, prefetchAbortVec:
-		nn = 4
+		if !t {
+			pc -= 4
+		}
 	}
+	return pc
+}
 
-	if t {
-		nn += 2
-	} else {
-		nn += 4
-	}
-	return nn
+func (g *GBA) CartInfo() string {
+	str := `%s
+ROM size: %s`
+	return fmt.Sprintf(str, g.CartHeader, util.FormatSize(uint(g.RAM.ROMSize)))
 }

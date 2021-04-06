@@ -1,7 +1,6 @@
 package gba
 
 import (
-	"fmt"
 	"mettaur/pkg/util"
 )
 
@@ -15,66 +14,73 @@ const (
 )
 
 type DMA struct {
-	src, dst uint32
-	cnt      uint32
+	io [12]byte
 }
 
+func NewDMA() [4]*DMA       { return [4]*DMA{&DMA{}, &DMA{}, &DMA{}, &DMA{}} }
+func (ch *DMA) src() uint32 { return util.LE32(ch.io[:]) }
+func (ch *DMA) dst() uint32 { return util.LE32(ch.io[4:]) }
+func (ch *DMA) cnt() uint32 { return util.LE32(ch.io[8:]) }
+func (ch *DMA) setCnt(v uint32) {
+	ch.io[8] = byte(v)
+	ch.io[9] = byte(v >> 8)
+	ch.io[10] = byte(v >> 16)
+	ch.io[11] = byte(v >> 24)
+}
 func isDMA0IO(addr uint32) bool { return 0x0400_00B0 <= addr && addr <= 0x0400_00BB }
 func isDMA1IO(addr uint32) bool { return 0x0400_00BC <= addr && addr <= 0x0400_00C7 }
 func isDMA2IO(addr uint32) bool { return 0x0400_00C8 <= addr && addr <= 0x0400_00D3 }
 func isDMA3IO(addr uint32) bool { return 0x0400_00D4 <= addr && addr <= 0x0400_00DF }
 
-func (d *DMA) set(ofs uint32, b byte) bool {
-	switch {
-	case ofs < 4:
-		d.src = (d.src & util.Mask[ofs]) | uint32(b<<(8*ofs))
-		return false
-	case ofs < 8:
-		d.dst = (d.dst & util.Mask[ofs-4]) | uint32(b<<(8*(ofs-4)))
-		return false
-	case ofs < 12:
-		old := d.cnt
-		d.cnt = (d.cnt & util.Mask[ofs-8]) | uint32(b<<(8*(ofs-8)))
-		return !util.Bit(old, 16+15) && d.enabled() && d.timing() == dmaImmediate
+func (ch *DMA) get(ofs uint32) uint32 {
+	return util.LE32(ch.io[ofs:])
+}
+func (ch *DMA) set(ofs uint32, b byte) bool {
+	old := byte(ch.cnt() >> 24)
+	ch.io[ofs] = b
+	if ofs == 11 {
+		return !util.Bit(old, 7) && util.Bit(b, 7) && (ch.timing() == 0)
 	}
 	return false
 }
 
-func (d *DMA) dstCnt() int64 {
-	switch (d.cnt >> (16 + 5)) & 0b11 {
-	case 0, 3:
-		return int64(d.size()) / 8
-	case 1:
-		return -int64(d.size()) / 8
-	default:
-		return 0
-	}
-}
-func (d *DMA) srcCnt() int64 {
-	switch (d.cnt >> (16 + 7)) & 0b11 {
+func (ch *DMA) dstCnt() (int64, bool) {
+	switch (ch.cnt() >> (16 + 5)) & 0b11 {
 	case 0:
-		return int64(d.size()) / 8
+		return int64(ch.size()) / 8, false
 	case 1:
-		return -int64(d.size()) / 8
+		return -int64(ch.size()) / 8, false
+	case 3:
+		return int64(ch.size()) / 8, true
+	default:
+		return 0, false
+	}
+}
+func (ch *DMA) srcCnt() int64 {
+	switch (ch.cnt() >> (16 + 7)) & 0b11 {
+	case 0:
+		return int64(ch.size()) / 8
+	case 1:
+		return -int64(ch.size()) / 8
 	default:
 		return 0
 	}
 }
-func (d *DMA) repeat() bool { return util.Bit(d.cnt, 16+9) }
-func (d *DMA) size() int {
-	if util.Bit(d.cnt, 16+10) {
+func (ch *DMA) repeat() bool { return util.Bit(ch.cnt(), 16+9) }
+func (ch *DMA) size() int {
+	if util.Bit(ch.cnt(), 16+10) {
 		return 32
 	}
 	return 16
 }
-func (d *DMA) timing() dmaTiming { return dmaTiming((d.cnt >> (16 + 12)) & 0b11) }
-func (d *DMA) irq() bool         { return util.Bit(d.cnt, 16+14) }
-func (d *DMA) enabled() bool     { return util.Bit(d.cnt, 16+15) }
-func (d *DMA) disable() {
-	d.cnt &= 0x7fff_ffff
+func (ch *DMA) timing() dmaTiming { return dmaTiming((ch.cnt() >> (16 + 12)) & 0b11) }
+func (ch *DMA) irq() bool         { return util.Bit(ch.cnt(), 16+14) }
+func (ch *DMA) enabled() bool     { return util.Bit(ch.cnt(), 16+15) }
+func (ch *DMA) disable() {
+	ch.setCnt(ch.cnt() & 0x7fff_ffff)
 }
-func (d *DMA) wordCount(i int) int {
-	wordCount := d.cnt & 0xffff
+func (ch *DMA) wordCount(i int) int {
+	wordCount := ch.cnt() & 0xffff
 	if wordCount == 0 {
 		wordCount = 0x4000
 		if i == 3 {
@@ -93,30 +99,35 @@ func (g *GBA) dmaTransfer(t dmaTiming) {
 			continue
 		}
 
-		fmt.Printf("DMA%d start", i)
+		// fmt.Printf("DMA%d start", i)
 		g.timer(2)
 
 		wc := ch.wordCount(i)
 		size := ch.size()
+
+		src, dst := ch.src(), ch.dst()
+		srcInc := ch.srcCnt()
+		dstInc, _ := ch.dstCnt()
 		for wc > 0 {
 			switch size {
 			case 16:
-				g.setRAM16(ch.dst, g.getRAM16(ch.src, true), true)
+				g.setRAM16(dst, g.getRAM16(src, true), true)
 			case 32:
-				g.setRAM32(ch.dst, g.getRAM32(ch.src, true), true)
+				g.setRAM32(dst, g.getRAM32(src, true), true)
 			}
 
-			ch.dst = uint32(int64(ch.dst) + ch.dstCnt())
-			ch.src = uint32(int64(ch.src) + ch.srcCnt())
+			dst = uint32(int64(dst) + dstInc)
+			src = uint32(int64(src) + srcInc)
 
 			wc--
 		}
 
+		if ch.irq() {
+			g.triggerIRQ(IRQID(irqDMA0 + i))
+		}
+
 		if !ch.repeat() {
 			ch.disable()
-		}
-		if ch.irq() {
-			g.triggerIRQ(irqDMA0 + i)
 		}
 	}
 }

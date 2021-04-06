@@ -13,6 +13,18 @@ func (g *GBA) _getRAM(addr uint32) uint32 {
 	switch {
 	case gpu.IsIO(addr):
 		return util.LE32(g.GPU.IO[(addr - 0x0400_0000):])
+	case isDMA0IO(addr):
+		return g.dma[0].get(addr - 0x0400_00b0)
+	case isDMA1IO(addr):
+		return g.dma[1].get(addr - 0x0400_00bc)
+	case isDMA2IO(addr):
+		return g.dma[2].get(addr - 0x0400_00c8)
+	case isDMA3IO(addr):
+		return g.dma[3].get(addr - 0x0400_00d4)
+	case timer.IsIO(addr):
+		return g.timers.GetIO(addr - 0x0400_0100)
+	case addr == ram.KEYINPUT || addr == ram.KEYINPUT+1:
+		return util.LE32(g.joypad.Input[addr-ram.KEYINPUT:])
 	case ram.Palette(addr):
 		offset := ram.PaletteOffset(addr)
 		return util.LE32(g.GPU.Palette[offset:])
@@ -66,6 +78,8 @@ func (g *GBA) setRAM8(addr uint32, b byte, s bool) {
 	g._setRAM8(addr, b)
 }
 
+var ctr = 0
+
 func (g *GBA) _setRAM8(addr uint32, b byte) {
 	defer func() {
 		if err := recover(); err != nil {
@@ -99,7 +113,9 @@ func (g *GBA) _setRAM8(addr uint32, b byte) {
 		}
 	case timer.IsIO(addr):
 		g.timers.SetIO(addr-0x0400_0100, b)
-	case addr == ram.DISPCNT || addr == ram.DISPCNT+1:
+	case addr == ram.KEYINPUT || addr == ram.KEYINPUT+1 || addr == ram.KEYCNT || addr == ram.KEYCNT+1:
+		g.joypad.Input[addr-ram.KEYINPUT] = b
+	case addr == ram.IE || addr == ram.IE+1:
 		g.RAM.Set8(addr, b)
 		g.checkIRQ()
 	case addr == ram.IME || addr == ram.IME+1 || addr == ram.IME+2 || addr == ram.IME+3:
@@ -111,7 +127,6 @@ func (g *GBA) _setRAM8(addr uint32, b byte) {
 	case addr == ram.HALTCNT:
 		g.halt = true
 	case ram.Palette(addr):
-		// fmt.Printf("BYTE[0x%08x] = %d in 0x%08x\n", addr, b, g.inst.loc)
 		g.GPU.Palette[ram.PaletteOffset(addr)] = b
 	case ram.VRAM(addr):
 		g.GPU.VRAM[ram.VRAMOffset(addr)] = b

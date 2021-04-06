@@ -16,7 +16,8 @@ func (g *GBA) cycleN(addr uint32) int {
 	case ram.EWRAM(addr):
 		return 3
 	case ram.GamePak0(addr):
-		idx := g._getRAM(ram.WAITCNT) >> 2 & 0b11
+		offset := ram.IOOffset(ram.WAITCNT)
+		idx := g.RAM.IO[offset] >> 2 & 0b11
 		return wsN[idx] + 1
 	case ram.GamePak1(addr):
 		idx := g._getRAM(ram.WAITCNT) >> 5 & 0b11
@@ -36,7 +37,8 @@ func (g *GBA) cycleS(addr uint32) int {
 	case ram.EWRAM(addr):
 		return 3
 	case ram.GamePak0(addr):
-		idx := g._getRAM(ram.WAITCNT) >> 4 & 0b1
+		offset := ram.IOOffset(ram.WAITCNT)
+		idx := g.RAM.IO[offset] >> 4 & 0b1
 		return wsS0[idx] + 1
 	case ram.GamePak1(addr):
 		idx := g._getRAM(ram.WAITCNT) >> 7 & 0b1
@@ -77,7 +79,7 @@ func (g *GBA) timer(cycle int) {
 		irqs := g.timers.Tick()
 		for i, irq := range irqs {
 			if irq {
-				g.triggerIRQ(i + 3)
+				g.triggerIRQ(IRQID(i + 3))
 			}
 		}
 		cycle--
