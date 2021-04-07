@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -53,8 +54,9 @@ func main() {
 // Run program
 func Run() ExitCode {
 	var (
-		showVersion  = flag.Bool("v", false, "show version")
-		showCartInfo = flag.Bool("c", false, "show cartridge info")
+		showVersion   = flag.Bool("v", false, "show version")
+		showBIOSIntro = flag.Bool("b", false, "show BIOS intro")
+		showCartInfo  = flag.Bool("c", false, "show cartridge info")
 	)
 
 	flag.Parse()
@@ -72,6 +74,7 @@ func Run() ExitCode {
 
 	emu := &Emulator{
 		gba: gba.New(data),
+		rom: path,
 	}
 	if *showCartInfo {
 		fmt.Println(emu.gba.CartInfo())
@@ -79,8 +82,12 @@ func Run() ExitCode {
 	}
 
 	emu.SetupCloseHandler()
-	emu.gba.Reset()
-	// emu.gba.SoftReset()
+	emu.loadSav()
+	if *showBIOSIntro {
+		emu.gba.Reset()
+	} else {
+		emu.gba.SoftReset()
+	}
 
 	ebiten.SetWindowResizable(true)
 	ebiten.SetWindowTitle(title)
@@ -112,6 +119,7 @@ func readROM(path string) ([]byte, error) {
 
 type Emulator struct {
 	gba *gba.GBA
+	rom string
 }
 
 func (e *Emulator) Update() error {
@@ -123,11 +131,16 @@ func (e *Emulator) Update() error {
 		}
 	}()
 	e.gba.Update()
+	if e.gba.DoSav && e.gba.Frame%60 == 0 {
+		e.writeSav()
+	}
 	return nil
 }
+
 func (e *Emulator) Draw(screen *ebiten.Image) {
 	screen.DrawImage(ebiten.NewImageFromImage(e.gba.Draw()), nil)
 }
+
 func (e *Emulator) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
 	return 240, 160
 }
@@ -140,4 +153,19 @@ func (e *Emulator) SetupCloseHandler() {
 		e.gba.Exit("Ctrl+C pressed in Terminal")
 		os.Exit(0)
 	}()
+}
+
+func (e *Emulator) writeSav() {
+	path := strings.ReplaceAll(e.rom, ".gba", ".sav")
+	os.WriteFile(path, e.gba.RAM.SRAM[:], os.ModePerm)
+	e.gba.DoSav = false
+}
+
+func (e *Emulator) loadSav() {
+	path := strings.ReplaceAll(e.rom, ".gba", ".sav")
+	if f, err := os.Stat(path); os.IsNotExist(err) || f.IsDir() {
+		return
+	} else if sav, err := os.ReadFile(path); err == nil {
+		e.gba.LoadSav(sav)
+	}
 }

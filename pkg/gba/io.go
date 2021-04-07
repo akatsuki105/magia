@@ -78,8 +78,6 @@ func (g *GBA) setRAM8(addr uint32, b byte, s bool) {
 	g._setRAM8(addr, b)
 }
 
-var ctr = 0
-
 func (g *GBA) _setRAM8(addr uint32, b byte) {
 	defer func() {
 		if err := recover(); err != nil {
@@ -132,6 +130,9 @@ func (g *GBA) _setRAM8(addr uint32, b byte) {
 		g.GPU.VRAM[ram.VRAMOffset(addr)] = b
 	case ram.OAM(addr):
 		g.GPU.OAM[ram.OAMOffset(addr)] = b
+	case ram.SRAM(addr):
+		g.RAM.Set8(addr, b)
+		g.DoSav = true
 	default:
 		g.RAM.Set8(addr, b)
 	}

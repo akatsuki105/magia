@@ -49,13 +49,14 @@ type GBA struct {
 	RAM        ram.RAM
 	inst       Inst
 	cycle      int
-	frame      uint
+	Frame      uint
 	line       int
 	halt       bool
 	pipe       Pipe
 	timers     timer.Timers
 	dma        [4]*DMA
 	joypad     joypad.Joypad
+	DoSav      bool
 }
 
 type Pipe struct {
@@ -180,11 +181,11 @@ func (g *GBA) Update() {
 	// line 227
 	g.scanline()
 
-	if g.frame%2 == 0 {
+	if g.Frame%2 == 0 {
 		g.joypad.Read()
 	}
 
-	g.frame++
+	g.Frame++
 }
 
 func (g *GBA) scanline() {
@@ -322,4 +323,13 @@ func (g *GBA) CartInfo() string {
 	str := `%s
 ROM size: %s`
 	return fmt.Sprintf(str, g.CartHeader, util.FormatSize(uint(g.RAM.ROMSize)))
+}
+
+func (g *GBA) LoadSav(bs []byte) {
+	if len(bs) > 65536 {
+		return
+	}
+	for i, b := range bs {
+		g.RAM.SRAM[i] = b
+	}
 }
