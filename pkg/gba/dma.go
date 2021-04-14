@@ -21,6 +21,12 @@ func NewDMA() [4]*DMA       { return [4]*DMA{&DMA{}, &DMA{}, &DMA{}, &DMA{}} }
 func (ch *DMA) src() uint32 { return util.LE32(ch.io[:]) }
 func (ch *DMA) dst() uint32 { return util.LE32(ch.io[4:]) }
 func (ch *DMA) cnt() uint32 { return util.LE32(ch.io[8:]) }
+func (ch *DMA) setSrc(v uint32) {
+	ch.io[0] = byte(v)
+	ch.io[1] = byte(v >> 8)
+	ch.io[2] = byte(v >> 16)
+	ch.io[3] = byte(v >> 24)
+}
 func (ch *DMA) setCnt(v uint32) {
 	ch.io[8] = byte(v)
 	ch.io[9] = byte(v >> 8)
@@ -129,5 +135,35 @@ func (g *GBA) dmaTransfer(t dmaTiming) {
 		if !ch.repeat() {
 			ch.disable()
 		}
+	}
+}
+
+func (g *GBA) dmaTransferFifo(ch int) {
+	if !g.isSoundMasterEnable() || !g.dma[ch].enabled() || g.dma[ch].timing() != dmaSpecial {
+		return
+	}
+
+	// 32bit × 4 = 4 words
+	dst := g.dma[ch].dst()
+	for i := 0; i < 4; i++ {
+		src := g.dma[ch].src()
+		g.setRAM32(dst, g.getRAM32(src, true), true)
+
+		if ch == 1 {
+			g.fifoACopy()
+		} else {
+			g.fifoBCopy()
+		}
+
+		switch (g.dma[ch].cnt() >> (16 + 7)) & 0b11 {
+		case 0:
+			g.dma[ch].setSrc(src + 4)
+		case 1:
+			g.dma[ch].setSrc(src - 4)
+		}
+	}
+
+	if g.dma[ch].irq() {
+		g.triggerIRQ(IRQID(irqDMA0 + ch))
 	}
 }

@@ -123,13 +123,7 @@ type Emulator struct {
 }
 
 func (e *Emulator) Update() error {
-	defer func() {
-		if err := recover(); err != nil {
-			fmt.Fprintf(os.Stderr, "crash in emulation: %s in 0x%08x\n", err, e.gba.PC())
-			e.gba.Exit("")
-			panic("")
-		}
-	}()
+	defer e.gba.PanicHandler(true)
 	e.gba.Update()
 	if e.gba.DoSav && e.gba.Frame%60 == 0 {
 		e.writeSav()

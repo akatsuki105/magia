@@ -2,6 +2,12 @@ package gba
 
 import (
 	"mettaur/pkg/ram"
+	"mettaur/pkg/util"
+)
+
+const (
+	SoundATimer = 10
+	SoundBTimer = 14
 )
 
 var (
@@ -76,7 +82,7 @@ func (g *GBA) waitBus(addr uint32, size int, s bool) int {
 func (g *GBA) timer(cycle int) {
 	for cycle > 0 {
 		g.cycle++
-		irqs := g.timers.Tick()
+		irqs := g.Tick()
 		for i, irq := range irqs {
 			if irq {
 				g.triggerIRQ(IRQID(i + 3))
@@ -84,4 +90,158 @@ func (g *GBA) timer(cycle int) {
 		}
 		cycle--
 	}
+}
+
+type Timers [4]*Timer
+
+func newTimers() Timers {
+	return Timers{&Timer{}, &Timer{}, &Timer{}, &Timer{}}
+}
+
+type Timer struct {
+	Count   uint16
+	Next    int // if this value is 0, count up timer.Count
+	Reload  uint16
+	Control byte
+}
+
+func (t *Timer) period() int {
+	switch t.Control & 0b11 {
+	case 0:
+		return 1
+	case 1:
+		return 64
+	case 2:
+		return 256
+	default:
+		return 1024
+	}
+}
+func (t *Timer) cascade() bool { return util.Bit(t.Control, 2) }
+func (t *Timer) irq() bool     { return util.Bit(t.Control, 6) }
+func (t *Timer) enable() bool  { return util.Bit(t.Control, 7) }
+func (t *Timer) increment() bool {
+	t.Next = t.period()
+	previous := t.Count
+	t.Count++
+	current := t.Count
+	return current < previous // if overflow occurs
+}
+func (t *Timer) overflow() bool {
+	t.Count = t.Reload
+	return t.irq()
+}
+
+// IsIO returns true if addr is for Timer IO register.
+func IsTimerIO(addr uint32) bool {
+	return (addr >= 0x0400_0100) && (addr < 0x0400_0110)
+}
+func (ts *Timers) GetIO(offset uint32) uint32 {
+	idx := offset / 4
+	ofs := offset % 4
+	switch ofs {
+	case 0:
+		return uint32(ts[idx].Control)<<16 | uint32(ts[idx].Count)
+	case 1:
+		return uint32(ts[idx].Count >> 8)
+	case 2:
+		return uint32(ts[idx].Control)
+	case 3:
+		return 0
+	}
+	return 0
+}
+
+func (ts *Timers) SetIO(offset uint32, b byte) {
+	idx := offset / 4
+	ofs := offset % 4
+	switch ofs {
+	case 0:
+		ts[idx].Reload = (ts[idx].Reload & 0xff00) | uint16(b)
+	case 1:
+		ts[idx].Reload = (ts[idx].Reload & 0xff) | (uint16(b) << 8)
+	case 2:
+		previous := util.Bit(ts[idx].Control, 7)
+		ts[idx].Control = b
+		// The reload value is copied into the counter when the timer start bit becomes changed from 0 to 1.
+		if !previous && util.Bit(ts[idx].Control, 7) {
+			ts[idx].Count = ts[idx].Reload
+		}
+	}
+}
+
+func (g *GBA) Tick() [4]bool {
+	overflow, irq := false, [4]bool{}
+	ts := &g.timers
+	if ts[0].enable() {
+		if ts[0].Next > 0 {
+			ts[0].Next--
+		}
+		if ts[0].Next == 0 {
+			overflow = ts[0].increment()
+			if overflow {
+				cnth := uint16(g._getRAM(ram.SOUNDCNT_H))
+				if (cnth>>SoundATimer)&1 == 0 {
+					g.fifoALoad()
+					if fifoALen <= 0x10 {
+						g.dmaTransferFifo(1)
+					}
+				}
+				if (cnth>>SoundBTimer)&1 == 0 {
+					g.fifoBLoad()
+					if fifoBLen <= 0x10 {
+						g.dmaTransferFifo(2)
+					}
+				}
+				if ts[0].overflow() {
+					irq[0] = true
+				}
+			}
+		}
+	}
+
+	for i := 1; i < 4; i++ {
+		if !ts[i].enable() {
+			overflow = false
+			continue
+		}
+
+		countUp := false
+		if ts[i].cascade() {
+			countUp = overflow
+		} else {
+			if ts[i].Next > 0 {
+				ts[i].Next--
+			}
+			countUp = ts[i].Next == 0
+		}
+		overflow = false
+
+		if countUp {
+			overflow = ts[i].increment()
+			if overflow {
+				if i == 1 {
+					cnth := uint16(g._getRAM(ram.SOUNDCNT_H))
+					if (cnth>>SoundATimer)&1 == 1 {
+						g.fifoALoad()
+						if fifoALen <= 0x10 {
+							g.dmaTransferFifo(1)
+						}
+					}
+					if (cnth>>SoundBTimer)&1 == 1 {
+						g.fifoBLoad()
+						if fifoBLen <= 0x10 {
+							g.dmaTransferFifo(2)
+						}
+					}
+				}
+
+				if ts[i].overflow() {
+					irq[i] = true
+				}
+			}
+		}
+	}
+
+	return irq
 }

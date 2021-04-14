@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"mettaur/pkg/ram"
 	"mettaur/pkg/util"
+	"os"
+	"runtime"
 )
 
 const (
@@ -330,4 +332,19 @@ func (ih IRQHistory) String() string {
 		mode = "THUMB"
 	}
 	return fmt.Sprintf("IRQ(%s): 0x%08x -> 0x%08x on %s", ih.irq, ih.start, ih.returnTo, mode)
+}
+
+func (g *GBA) PanicHandler(stack bool) {
+	if err := recover(); err != nil {
+		fmt.Fprintf(os.Stderr, "crash in emulation: %s in 0x%08x\n", err, g.PC())
+		for depth := 0; ; depth++ {
+			_, file, line, ok := runtime.Caller(depth)
+			if !ok {
+				break
+			}
+			fmt.Printf("======> %d: %v:%d\n", depth, file, line)
+		}
+		g.Exit("")
+		panic("")
+	}
 }

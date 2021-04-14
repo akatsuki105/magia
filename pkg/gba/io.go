@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"mettaur/pkg/gpu"
 	"mettaur/pkg/ram"
-	"mettaur/pkg/timer"
 	"mettaur/pkg/util"
 	"strings"
 )
@@ -13,6 +12,10 @@ func (g *GBA) _getRAM(addr uint32) uint32 {
 	switch {
 	case gpu.IsIO(addr):
 		return util.LE32(g.GPU.IO[(addr - 0x0400_0000):])
+	case isWaveRAM(addr):
+		bank := (g._getRAM(ram.SOUND3CNT_L) >> 2) & 0x10
+		idx := (bank ^ 0x10) | (addr & 0xf)
+		return util.LE32(waveRAM[idx:])
 	case isDMA0IO(addr):
 		return g.dma[0].get(addr - 0x0400_00b0)
 	case isDMA1IO(addr):
@@ -21,7 +24,7 @@ func (g *GBA) _getRAM(addr uint32) uint32 {
 		return g.dma[2].get(addr - 0x0400_00c8)
 	case isDMA3IO(addr):
 		return g.dma[3].get(addr - 0x0400_00d4)
-	case timer.IsIO(addr):
+	case IsTimerIO(addr):
 		return g.timers.GetIO(addr - 0x0400_0100)
 	case addr == ram.KEYINPUT || addr == ram.KEYINPUT+1:
 		return util.LE32(g.joypad.Input[addr-ram.KEYINPUT:])
@@ -55,6 +58,10 @@ func (g *GBA) getRAM8(addr uint32, s bool) byte {
 
 func (g *GBA) setRAM32(addr, value uint32, s bool) {
 	g.timer(g.waitBus(addr, 32, s))
+	g._setRAM32(addr, value)
+}
+
+func (g *GBA) _setRAM32(addr, value uint32) {
 	b0, b1, b2, b3 := value&0xff, (value>>8)&0xff, (value>>16)&0xff, (value>>24)&0xff
 	g._setRAM8(addr, byte(b0))
 	g._setRAM8(addr+1, byte(b1))
@@ -93,6 +100,38 @@ func (g *GBA) _setRAM8(addr uint32, b byte) {
 	switch {
 	case gpu.IsIO(addr):
 		g.GPU.IO[addr-0x0400_0000] = b
+	case isSoundIO(addr):
+		if util.Bit(byte(g._getRAM(ram.SOUNDCNT_X)), 7) {
+			g.RAM.Set8(addr, b)
+			if isResetSoundChan(addr) {
+				g.resetSoundChan(addr, b)
+			}
+		}
+	case addr == ram.SOUNDCNT_H+1:
+		if util.Bit(b, 3) {
+			fifoA = [32]int8{}
+			fifoALen = 0
+		}
+		g.RAM.Set8(addr, b)
+	case addr == ram.SOUNDCNT_H+3:
+		if util.Bit(b, 7) {
+			fifoB = [32]int8{}
+			fifoBLen = 0
+		}
+		g.RAM.Set8(addr, b)
+	case addr == ram.SOUNDCNT_X:
+		old := byte(g._getRAM(addr))
+		old = (old & 0xf) | (b & 0xf0)
+		g.RAM.Set8(addr, old)
+		if !util.Bit(b, 7) {
+			for i := uint32(0x4000060); i <= 0x4000081; i++ {
+				g.RAM.IO[ram.IOOffset(i)] = 0
+			}
+		}
+	case isWaveRAM(addr):
+		bank := (g._getRAM(ram.SOUND3CNT_L) >> 2) & 0x10
+		idx := (bank ^ 0x10) | (addr & 0xf)
+		waveRAM[idx] = b
 	case isDMA0IO(addr):
 		if g.dma[0].set(addr-0x0400_00b0, b) {
 			g.dmaTransfer(dmaImmediate)
@@ -109,7 +148,7 @@ func (g *GBA) _setRAM8(addr uint32, b byte) {
 		if g.dma[3].set(addr-0x0400_00d4, b) {
 			g.dmaTransfer(dmaImmediate)
 		}
-	case timer.IsIO(addr):
+	case IsTimerIO(addr):
 		g.timers.SetIO(addr-0x0400_0100, b)
 	case addr == ram.KEYINPUT || addr == ram.KEYINPUT+1 || addr == ram.KEYCNT || addr == ram.KEYCNT+1:
 		g.joypad.Input[addr-ram.KEYINPUT] = b

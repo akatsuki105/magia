@@ -43,6 +43,27 @@ const (
 	BLDY     = base + 0x54
 )
 
+// Sound IO
+const (
+	SOUND1CNT_L = base + 0x60
+	SOUND1CNT_H = base + 0x62
+	SOUND1CNT_X = base + 0x64
+	SOUND2CNT_L = base + 0x68
+	SOUND2CNT_H = base + 0x6c
+	SOUND3CNT_L = base + 0x70
+	SOUND3CNT_H = base + 0x72
+	SOUND3CNT_X = base + 0x74
+	SOUND4CNT_L = base + 0x78
+	SOUND4CNT_H = base + 0x7c
+	SOUNDCNT_L  = base + 0x80
+	SOUNDCNT_H  = base + 0x82
+	SOUNDCNT_X  = base + 0x84
+	SOUNDBIAS   = base + 0x88
+	WAVE_RAM    = base + 0x90
+	FIFO_A      = base + 0xa0
+	FIFO_B      = base + 0xa4
+)
+
 // DMA Transfer
 const (
 	DMA0SAD = base + 0xb0

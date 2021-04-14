@@ -45,7 +45,8 @@ $ ./build/darwin-amd64/mettaur XXXX.gba
 
 ## ToDo
 
-- [ ] Sound
+- [ ] Sound DMA
+- [ ] Clear sound
 - [ ] Window
 - [ ] Mosaic
 - [ ] Blend

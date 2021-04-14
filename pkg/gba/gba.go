@@ -7,7 +7,6 @@ import (
 	"mettaur/pkg/gpu"
 	"mettaur/pkg/joypad"
 	"mettaur/pkg/ram"
-	"mettaur/pkg/timer"
 	"mettaur/pkg/util"
 )
 
@@ -53,10 +52,11 @@ type GBA struct {
 	line       int
 	halt       bool
 	pipe       Pipe
-	timers     timer.Timers
+	timers     Timers
 	dma        [4]*DMA
 	joypad     joypad.Joypad
 	DoSav      bool
+	apu        *APU
 }
 
 type Pipe struct {
@@ -77,8 +77,11 @@ func New(src []byte) *GBA {
 		CartHeader: cart.New(src),
 		RAM:        *ram.New(src),
 		dma:        NewDMA(),
+		apu:        newAPU(),
+		timers:     newTimers(),
 	}
 	g._setRAM16(ram.KEYINPUT, 0x3ff)
+	g.playSound()
 	return g
 }
 
@@ -87,6 +90,7 @@ func (g *GBA) Exit(s string) {
 	if debug {
 		g.PrintHistory()
 	}
+	g.exitAPU()
 	panic("")
 }
 
@@ -185,6 +189,7 @@ func (g *GBA) Update() {
 		g.joypad.Read()
 	}
 
+	g.soundBufferWrap()
 	g.Frame++
 }
 
@@ -202,6 +207,7 @@ func (g *GBA) scanline() {
 	g.GPU.SetHBlank(true)
 	g.dmaTransfer(dmaHBlank)
 	g.exec(1232 - 1006)
+	g.soundClock(1232)
 	g.GPU.SetHBlank(false)
 
 	vCount := g.GPU.IncrementVCount()
