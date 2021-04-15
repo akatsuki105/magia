@@ -45,21 +45,25 @@ func (j *Joypad) Read() {
 	}
 	if btnRight() {
 		j.Input[0] = j.Input[0] & ^byte((1 << Right))
+		j.Input[0] = j.Input[0] | byte((1 << Left)) // off <-
 	} else {
 		j.Input[0] = j.Input[0] | byte((1 << Right))
 	}
 	if btnLeft() {
 		j.Input[0] = j.Input[0] & ^byte((1 << Left))
+		j.Input[0] = j.Input[0] | byte((1 << Right)) // off ->
 	} else {
 		j.Input[0] = j.Input[0] | byte((1 << Left))
 	}
 	if btnUp() {
 		j.Input[0] = j.Input[0] & ^byte((1 << Up))
+		j.Input[0] = j.Input[0] | byte((1 << Down)) // off ↓
 	} else {
 		j.Input[0] = j.Input[0] | byte((1 << Up))
 	}
 	if btnDown() {
 		j.Input[0] = j.Input[0] & ^byte((1 << Down))
+		j.Input[0] = j.Input[0] | byte((1 << Up)) // off ↑
 	} else {
 		j.Input[0] = j.Input[0] | byte((1 << Down))
 	}
