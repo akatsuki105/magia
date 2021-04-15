@@ -132,7 +132,7 @@ func (e *Emulator) Update() error {
 }
 
 func (e *Emulator) Draw(screen *ebiten.Image) {
-	screen.DrawImage(ebiten.NewImageFromImage(e.gba.Draw()), nil)
+	screen.ReplacePixels(e.gba.Draw().Pix)
 }
 
 func (e *Emulator) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
