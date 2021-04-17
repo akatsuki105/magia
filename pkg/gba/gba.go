@@ -80,7 +80,7 @@ func New(src []byte) *GBA {
 		apu:        newAPU(),
 		timers:     newTimers(),
 	}
-	g._setRAM16(ram.KEYINPUT, 0x3ff)
+	g._setRAM(ram.KEYINPUT, uint32(0x3ff), 2)
 	g.playSound()
 	return g
 }
@@ -138,7 +138,7 @@ func (g *GBA) Reset() {
 }
 
 func (g *GBA) SoftReset() {
-	g._setRAM16(ram.DISPCNT, 0x80)
+	g._setRAM(ram.DISPCNT, uint32(0x80), 2)
 	g.exception(swiVec, SWI)
 }
 

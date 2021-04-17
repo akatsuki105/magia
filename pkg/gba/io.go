@@ -58,34 +58,20 @@ func (g *GBA) getRAM8(addr uint32, s bool) byte {
 
 func (g *GBA) setRAM32(addr, value uint32, s bool) {
 	g.timer(g.waitBus(addr, 32, s))
-	g._setRAM32(addr, value)
-}
-
-func (g *GBA) _setRAM32(addr, value uint32) {
-	b0, b1, b2, b3 := value&0xff, (value>>8)&0xff, (value>>16)&0xff, (value>>24)&0xff
-	g._setRAM8(addr, byte(b0))
-	g._setRAM8(addr+1, byte(b1))
-	g._setRAM8(addr+2, byte(b2))
-	g._setRAM8(addr+3, byte(b3))
+	g._setRAM(addr, value, 4)
 }
 
 func (g *GBA) setRAM16(addr uint32, value uint16, s bool) {
 	g.timer(g.waitBus(addr, 16, s))
-	g._setRAM16(addr, value)
-}
-
-func (g *GBA) _setRAM16(addr uint32, value uint16) {
-	b0, b1 := value&0xff, (value>>8)&0xff
-	g._setRAM8(addr, byte(b0))
-	g._setRAM8(addr+1, byte(b1))
+	g._setRAM(addr, uint32(value), 2)
 }
 
 func (g *GBA) setRAM8(addr uint32, b byte, s bool) {
 	g.timer(g.waitBus(addr, 8, s))
-	g._setRAM8(addr, b)
+	g._setRAM(addr, uint32(b), 1)
 }
 
-func (g *GBA) _setRAM8(addr uint32, b byte) {
+func (g *GBA) _setRAM(addr uint32, val uint32, width int) {
 	defer func() {
 		if err := recover(); err != nil {
 			s := fmt.Sprintln(err)
@@ -99,80 +85,114 @@ func (g *GBA) _setRAM8(addr uint32, b byte) {
 
 	switch {
 	case gpu.IsIO(addr):
-		g.GPU.IO[addr-0x0400_0000] = b
+		for i := uint32(0); i < uint32(width); i++ {
+			g.GPU.IO[addr-0x0400_0000+i] = byte(val >> (8 * i))
+		}
 	case isSoundIO(addr):
 		if util.Bit(byte(g._getRAM(ram.SOUNDCNT_X)), 7) {
-			g.RAM.Set8(addr, b)
-			if isResetSoundChan(addr) {
-				g.resetSoundChan(addr, b)
+			for i := uint32(0); i < uint32(width); i++ {
+				g.RAM.Set8(addr+i, byte(val>>(8*i)))
+				if isResetSoundChan(addr) {
+					g.resetSoundChan(addr, byte(val>>(8*i)))
+				}
 			}
 		}
 	case addr == ram.SOUNDCNT_H+1:
-		if util.Bit(b, 3) {
-			fifoA = [32]int8{}
-			fifoALen = 0
+		for i := uint32(0); i < uint32(width); i++ {
+			if util.Bit(byte(val>>(8*i)), 3) {
+				fifoA = [32]int8{}
+				fifoALen = 0
+			}
+			g.RAM.Set8(addr+i, byte(val>>(8*i)))
 		}
-		g.RAM.Set8(addr, b)
 	case addr == ram.SOUNDCNT_H+3:
-		if util.Bit(b, 7) {
-			fifoB = [32]int8{}
-			fifoBLen = 0
+		for i := uint32(0); i < uint32(width); i++ {
+			if util.Bit(byte(val>>(8*i)), 7) {
+				fifoB = [32]int8{}
+				fifoBLen = 0
+			}
+			g.RAM.Set8(addr+i, byte(val>>(8*i)))
 		}
-		g.RAM.Set8(addr, b)
 	case addr == ram.SOUNDCNT_X:
 		old := byte(g._getRAM(addr))
-		old = (old & 0xf) | (b & 0xf0)
+		old = (old & 0xf) | (byte(val) & 0xf0)
 		g.RAM.Set8(addr, old)
-		if !util.Bit(b, 7) {
+		if !util.Bit(byte(val), 7) {
 			for i := uint32(0x4000060); i <= 0x4000081; i++ {
 				g.RAM.IO[ram.IOOffset(i)] = 0
 			}
 		}
 	case isWaveRAM(addr):
-		bank := (g._getRAM(ram.SOUND3CNT_L) >> 2) & 0x10
-		idx := (bank ^ 0x10) | (addr & 0xf)
-		waveRAM[idx] = b
+		for i := uint32(0); i < uint32(width); i++ {
+			bank := (g._getRAM(ram.SOUND3CNT_L) >> 2) & 0x10
+			idx := (bank ^ 0x10) | (addr & 0xf)
+			waveRAM[idx+i] = byte(val >> (8 * i))
+		}
 	case isDMA0IO(addr):
-		if g.dma[0].set(addr-0x0400_00b0, b) {
-			g.dmaTransfer(dmaImmediate)
+		for i := uint32(0); i < uint32(width); i++ {
+			if g.dma[0].set(addr-0x0400_00b0+i, byte(val>>(8*i))) {
+				g.dmaTransfer(dmaImmediate)
+			}
 		}
 	case isDMA1IO(addr):
-		if g.dma[1].set(addr-0x0400_00bc, b) {
-			g.dmaTransfer(dmaImmediate)
+		for i := uint32(0); i < uint32(width); i++ {
+			if g.dma[1].set(addr-0x0400_00bc+i, byte(val>>(8*i))) {
+				g.dmaTransfer(dmaImmediate)
+			}
 		}
 	case isDMA2IO(addr):
-		if g.dma[2].set(addr-0x0400_00c8, b) {
-			g.dmaTransfer(dmaImmediate)
+		for i := uint32(0); i < uint32(width); i++ {
+			if g.dma[2].set(addr-0x0400_00c8+i, byte(val>>(8*i))) {
+				g.dmaTransfer(dmaImmediate)
+			}
 		}
 	case isDMA3IO(addr):
-		if g.dma[3].set(addr-0x0400_00d4, b) {
-			g.dmaTransfer(dmaImmediate)
+		for i := uint32(0); i < uint32(width); i++ {
+			if g.dma[3].set(addr-0x0400_00d4+i, byte(val>>(8*i))) {
+				g.dmaTransfer(dmaImmediate)
+			}
 		}
 	case IsTimerIO(addr):
-		g.timers.SetIO(addr-0x0400_0100, b)
-	case addr == ram.KEYINPUT || addr == ram.KEYINPUT+1 || addr == ram.KEYCNT || addr == ram.KEYCNT+1:
-		g.joypad.Input[addr-ram.KEYINPUT] = b
-	case addr == ram.IE || addr == ram.IE+1:
-		g.RAM.Set8(addr, b)
+		for i := uint32(0); i < uint32(width); i++ {
+			g.timers.SetIO(addr-0x0400_0100+i, byte(val>>(8*i)))
+		}
+	case addr == ram.KEYCNT:
+		for i := uint32(0); i < uint32(width); i++ {
+			g.joypad.Input[2+i] = byte(val >> (8 * i))
+		}
+	case addr == ram.IE:
+		for i := uint32(0); i < uint32(width); i++ {
+			g.RAM.Set8(addr+i, byte(val>>(8*i)))
+		}
 		g.checkIRQ()
-	case addr == ram.IME || addr == ram.IME+1 || addr == ram.IME+2 || addr == ram.IME+3:
-		g.RAM.Set8(addr, b&0b1)
+	case addr == ram.IF:
+		for i := uint32(0); i < uint32(width); i++ {
+			value := byte(g._getRAM(addr + i))
+			g.RAM.Set8(addr+i, value & ^byte(val>>(8*i)))
+		}
+	case addr == ram.IME:
+		g.RAM.Set8(addr, byte(val)&0b1)
 		g.checkIRQ()
-	case addr == ram.IF || addr == ram.IF+1:
-		value := byte(g._getRAM(addr))
-		g.RAM.Set8(addr, value & ^b)
 	case addr == ram.HALTCNT:
 		g.halt = true
 	case ram.Palette(addr):
-		g.GPU.Palette[ram.PaletteOffset(addr)] = b
+		for i := uint32(0); i < uint32(width); i++ {
+			g.GPU.Palette[ram.PaletteOffset(addr+i)] = byte(val >> (8 * i))
+		}
 	case ram.VRAM(addr):
-		g.GPU.VRAM[ram.VRAMOffset(addr)] = b
+		for i := uint32(0); i < uint32(width); i++ {
+			g.GPU.VRAM[ram.VRAMOffset(addr+i)] = byte(val >> (8 * i))
+		}
 	case ram.OAM(addr):
-		g.GPU.OAM[ram.OAMOffset(addr)] = b
-	case ram.SRAM(addr):
-		g.RAM.Set8(addr, b)
-		g.DoSav = true
+		for i := uint32(0); i < uint32(width); i++ {
+			g.GPU.OAM[ram.OAMOffset(addr+i)] = byte(val >> (8 * i))
+		}
 	default:
-		g.RAM.Set8(addr, b)
+		for i := uint32(0); i < uint32(width); i++ {
+			g.RAM.Set8(addr+i, byte(val>>(8*i)))
+		}
+		if ram.SRAM(addr) {
+			g.DoSav = true
+		}
 	}
 }

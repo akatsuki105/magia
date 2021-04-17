@@ -64,6 +64,7 @@ func (g *GPU) drawObj(screen *image.RGBA, idx, prio, vcount int) {
 	}
 
 	objX := int(atr1 & 0x1ff)
+	objX = int((int16(objX) << 7) >> 7)
 	tileBaseIdx, colorMode, paletteIdx := int(atr2&0x3ff), (atr0 >> 13 & 0b1), int((atr2>>12)&0b1111)
 
 	y := vcount - objY

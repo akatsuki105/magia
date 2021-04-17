@@ -15,11 +15,9 @@ func IsArmBranch(inst uint32) bool {
 }
 
 // IsArmBX returns instruction is bx
+// 27-8: 0001_0010_1111_1111_1111 && 7-4: 0001
 func IsArmBX(inst uint32) bool {
-	mask := uint32(0b0000_0001_0010_1111_1111_1111_0001_0000)
-	cond1 := inst&mask == mask
-	cond2 := (inst>>4)&0b1111 == 0b1
-	return cond1 && cond2
+	return inst&0b0000_1111_1111_1111_1111_1111_1111_0000 == 0b0000_0001_0010_1111_1111_1111_0001_0000
 }
 
 // IsArmSWI returns instruction is `SWI{cond} nn`

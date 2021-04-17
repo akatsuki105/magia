@@ -70,8 +70,10 @@ func (g *GBA) armExec(inst uint32) {
 }
 
 func (g *GBA) armSWI(inst uint32) {
-	nn := byte(inst >> 16)
-	g.printSWI(nn)
+	if debug {
+		nn := byte(inst >> 16)
+		g.printSWI(nn)
+	}
 	g.exception(swiVec, SWI)
 }
 

@@ -159,7 +159,7 @@ func (g *GBA) squareSample(ch int) int8 {
 					// update frequency
 					ctrl := uint16(g._getRAM(ram.SOUND1CNT_X))
 					ctrl = (ctrl & ^uint16(0x7ff)) | uint16(freqHz)
-					g._setRAM16(ram.SOUND1CNT_X, ctrl)
+					g._setRAM(ram.SOUND1CNT_X, uint32(ctrl), 2)
 				} else {
 					g.enableSoundChan(0, false)
 				}
@@ -187,7 +187,7 @@ func (g *GBA) squareSample(ch int) int8 {
 			}
 
 			tone = (tone & ^uint16(0xf000)) | (envelope << 12)
-			g._setRAM16(toneAddr, tone)
+			g._setRAM(toneAddr, uint32(tone), 2)
 		}
 	}
 
@@ -352,7 +352,7 @@ func (g *GBA) noiseSample() int8 {
 			}
 
 			newCntl := (cntl & ^uint32(0xf000)) | (envelope << 12)
-			g._setRAM32(ram.SOUND4CNT_L, newCntl)
+			g._setRAM(ram.SOUND4CNT_L, newCntl, 4)
 		}
 	}
 

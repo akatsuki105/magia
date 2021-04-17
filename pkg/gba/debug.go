@@ -181,10 +181,6 @@ func printRegister(r Reg) {
 }
 
 func (g *GBA) printSWI(nn byte) {
-	if !debug {
-		return
-	}
-
 	state := "ARM"
 	if g.GetCPSRFlag(flagT) {
 		state = "THUMB"
