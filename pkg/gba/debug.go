@@ -282,41 +282,9 @@ func (g *GBA) PrintHistory() {
 	}
 }
 
-func (i IRQID) String() string {
-	irq := ""
-	switch i {
-	case irqVBlank:
-		irq = "Vblank"
-	case irqHBlank:
-		irq = "Hblank"
-	case irqVCount:
-		irq = "VCount"
-	case irqTimer0:
-		irq = "Timer0"
-	case irqTimer1:
-		irq = "Timer1"
-	case irqTimer2:
-		irq = "Timer2"
-	case irqTimer3:
-		irq = "Timer3"
-	case irqSerial:
-		irq = "Serial"
-	case irqDMA0:
-		irq = "DMA0"
-	case irqDMA1:
-		irq = "DMA1"
-	case irqDMA2:
-		irq = "DMA2"
-	case irqDMA3:
-		irq = "DMA3"
-	case irqKEY:
-		irq = "KEY"
-	case irqGamePak:
-		irq = "GamePak"
-	}
+var irq2str = map[IRQID]string{irqVBlank: "Vblank", irqHBlank: "Hblank", irqVCount: "VCount", irqTimer0: "Timer0", irqTimer1: "Timer1", irqTimer2: "Timer2", irqTimer3: "Timer3", irqSerial: "Serial", irqDMA0: "DMA0", irqDMA1: "DMA1", irqDMA2: "DMA2", irqDMA3: "DMA3", irqKEY: "KEY", irqGamePak: "GamePak"}
 
-	return irq
-}
+func (i IRQID) String() string { return irq2str[i] }
 
 func (ih IRQHistory) String() string {
 	mode := "ARM"

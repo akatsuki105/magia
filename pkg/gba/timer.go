@@ -16,7 +16,6 @@ var (
 	wsS1 = [2]int{4, 1}
 	wsS2 = [2]int{8, 1}
 )
-var periods = map[byte]int{0: 1, 1: 64, 2: 256, 3: 1024}
 
 func (g *GBA) cycleN(addr uint32) int {
 	switch {

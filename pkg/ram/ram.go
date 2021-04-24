@@ -46,10 +46,8 @@ func New(src []byte) *RAM {
 }
 
 type GamePak struct {
-	GamePak0 [32 * mb]byte
-	GamePak1 [32 * mb]byte
-	GamePak2 [32 * mb]byte
-	SRAM     [64 * kb]byte
+	GamePak0, GamePak1, GamePak2 [32 * mb]byte
+	SRAM                         [64 * kb]byte
 }
 
 func (r *RAM) Get(addr uint32) uint32 {

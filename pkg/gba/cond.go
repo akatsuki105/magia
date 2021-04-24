@@ -23,40 +23,11 @@ const (
 	NV
 )
 
+var cond2str = map[Cond]string{EQ: "eq", NE: "ne", CS: "cs", CC: "cc", MI: "mi", PL: "pl", VS: "vs", VC: "vc", HI: "hi", LS: "ls", GE: "ge", LT: "lt", GT: "gt", LE: "le", AL: "al", NV: "nv"}
+
 func (c Cond) String() string {
-	switch c {
-	case EQ:
-		return "eq"
-	case NE:
-		return "ne"
-	case CS:
-		return "cs"
-	case CC:
-		return "cc"
-	case MI:
-		return "mi"
-	case PL:
-		return "pl"
-	case VS:
-		return "vs"
-	case VC:
-		return "vc"
-	case HI:
-		return "hi"
-	case LS:
-		return "ls"
-	case GE:
-		return "ge"
-	case LT:
-		return "lt"
-	case GT:
-		return "gt"
-	case LE:
-		return "le"
-	case AL:
-		return "al"
-	case NV:
-		return "nv"
+	if s, ok := cond2str[c]; ok {
+		return s
 	}
 	return "unk"
 }

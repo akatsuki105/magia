@@ -88,26 +88,22 @@ func (g *GBA) thumbAddSub(inst uint16) {
 	delta, rs, rd := (inst>>6)&0b111, (inst>>3)&0b111, inst&0b111
 	lhs, rhs := g.R[rs], g.R[delta]
 	switch opcode := (inst >> 9) & 0b11; opcode {
-	case 0:
-		// ADD Rd,Rs,Rn
+	case 0: // ADD Rd,Rs,Rn
 		result := uint64(lhs) + uint64(rhs)
 		g.R[rd] = lhs + rhs
 		g.SetCPSRFlag(flagC, util.AddC(result))
 		g.SetCPSRFlag(flagV, util.AddV(lhs, rhs, uint32(result)))
-	case 1:
-		// SUB Rd,Rs,Rn
+	case 1: // SUB Rd,Rs,Rn
 		result := uint64(lhs) - uint64(rhs)
 		g.R[rd] = lhs - rhs
 		g.SetCPSRFlag(flagC, util.SubC(result))
 		g.SetCPSRFlag(flagV, util.SubV(lhs, rhs, uint32(result)))
-	case 2:
-		// ADD Rd,Rs,#nn
+	case 2: // ADD Rd,Rs,#nn
 		result := uint64(lhs) + uint64(delta)
 		g.R[rd] = lhs + uint32(delta)
 		g.SetCPSRFlag(flagC, util.AddC(result))
 		g.SetCPSRFlag(flagV, util.AddV(lhs, uint32(delta), uint32(result)))
-	case 3:
-		// SUB Rd,Rs,#nn
+	case 3: // SUB Rd,Rs,#nn
 		result := uint64(lhs) - uint64(delta)
 		g.R[rd] = lhs - uint32(delta)
 		g.SetCPSRFlag(flagC, util.SubC(result))
@@ -123,23 +119,19 @@ func (g *GBA) thumbMovCmpAddSub(inst uint16) {
 	lhs := g.R[rd]
 	result := uint64(0)
 	switch opcode := (inst >> 11) & 0b11; opcode {
-	case 0:
-		// MOV Rd, #nn
+	case 0: // MOV Rd, #nn
 		result = uint64(nn)
 		g.R[rd] = nn
-	case 1:
-		// CMP
+	case 1: // CMP
 		result = uint64(g.R[rd]) - uint64(nn)
 		g.SetCPSRFlag(flagC, util.SubC(result))
 		g.SetCPSRFlag(flagV, util.SubV(g.R[rd], uint32(nn), uint32(result)))
-	case 2:
-		// ADD
+	case 2: // ADD
 		result = uint64(g.R[rd]) + uint64(nn)
 		g.R[rd] = g.R[rd] + nn
 		g.SetCPSRFlag(flagC, util.AddC(result))
 		g.SetCPSRFlag(flagV, util.AddV(lhs, uint32(nn), uint32(result)))
-	case 3:
-		// SUB
+	case 3: // SUB
 		result = uint64(g.R[rd]) - uint64(nn)
 		g.R[rd] = g.R[rd] - nn
 		g.SetCPSRFlag(flagC, util.SubC(result))
@@ -474,12 +466,8 @@ func (g *GBA) thumbMoveSP(inst uint16) {
 
 func (g *GBA) thumbCondBranch(inst uint16) {
 	if cond := Cond((inst >> 8) & 0b1111); g.Check(cond) {
-		nn := int8(byte(inst & 0b1111_1111))
-		if nn > 0 {
-			g.R[15] = g.inst.loc + 4 + uint32(nn)*2
-		} else {
-			g.R[15] = g.inst.loc + 4 - uint32(-nn)*2
-		}
+		nn := int32(int8(byte(inst & 0b1111_1111)))
+		g.R[15] = util.AddInt32(g.inst.loc+4, nn*2)
 		g.pipelining()
 	}
 }
@@ -495,12 +483,7 @@ func (g *GBA) thumbSWI(inst uint16) {
 func (g *GBA) thumbB(inst uint16) {
 	nn := int32(inst)
 	nn = (nn << 21) >> 20
-
-	if nn > 0 {
-		g.R[15] = g.inst.loc + 4 + uint32(nn)
-	} else {
-		g.R[15] = g.inst.loc + 4 - uint32(-nn)
-	}
+	g.R[15] = util.AddInt32(g.inst.loc+4, nn)
 	g.pipelining()
 }
 
@@ -508,11 +491,7 @@ func (g *GBA) thumbLinkBranch1(inst uint16) {
 	nn := int32(inst)
 	nn = (nn << 21) >> 9
 	g.R[14] = g.inst.loc + 4
-	if nn > 0 {
-		g.R[14] += uint32(nn)
-	} else {
-		g.R[14] -= uint32(-nn)
-	}
+	g.R[14] = util.AddInt32(g.R[14], nn)
 }
 
 func (g *GBA) thumbLinkBranch2(inst uint16) {

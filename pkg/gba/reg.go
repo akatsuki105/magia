@@ -1,6 +1,9 @@
 package gba
 
-import "fmt"
+import (
+	"fmt"
+	"mettaur/pkg/util"
+)
 
 const (
 	flagN = 31
@@ -52,34 +55,14 @@ func (r *Reg) softReset() {
 	r.CPSR = cpsr
 }
 
-func bankIdx(mode Mode) int {
-	switch mode {
-	case FIQ:
-		return 0
-	case IRQ:
-		return 3
-	case SWI:
-		return 1
-	case ABT:
-		return 2
-	case UND:
-		return 4
-	case USR, SYS:
-		return 5
-	}
-	return -1
-}
+var bankIdx = map[Mode]int{FIQ: 0, IRQ: 3, SWI: 1, ABT: 2, UND: 4, USR: 5, SYS: 5}
 
 // SetCPSRFlag sets CPSR flag
 func (r *Reg) SetCPSRFlag(idx int, flag bool) {
 	if idx < 0 || idx > 31 {
 		return
 	}
-	if flag {
-		r.CPSR = r.CPSR | (1 << idx)
-	} else {
-		r.CPSR = r.CPSR & ^(1 << idx)
-	}
+	r.CPSR = util.SetBit32(r.CPSR, idx, flag)
 }
 
 // GetCPSRFlag get CPSR flag
@@ -87,7 +70,7 @@ func (r *Reg) GetCPSRFlag(idx int) bool {
 	if idx < 0 || idx > 31 {
 		return false
 	}
-	return ((r.CPSR >> idx) & 1) == 1
+	return util.Bit(r.CPSR, idx)
 }
 
 // getOSMode get Processor mode
@@ -110,7 +93,7 @@ func (r *Reg) setOSMode(mode Mode) {
 // ref: arm_spsr_to_cpsr
 func (r *Reg) restoreOSMode() {
 	currMode := r.getOSMode()
-	r.CPSR = r.SPSRBank[bankIdx(currMode)]
+	r.CPSR = r.SPSRBank[bankIdx[currMode]]
 	prevMode := r.getOSMode()
 	r.copyRegToBank(currMode)
 	r.copyBankToReg(prevMode)
@@ -208,22 +191,11 @@ func (r *Reg) copyBankToReg(mode Mode) {
 	}
 }
 
+var mode2str = map[Mode]string{USR: "USR", FIQ: "FIQ", IRQ: "IRQ", SWI: "SWI", ABT: "ABT", UND: "UND", SYS: "SYS"}
+
 func (m Mode) String() string {
-	switch m {
-	case USR:
-		return "USR"
-	case FIQ:
-		return "FIQ"
-	case IRQ:
-		return "IRQ"
-	case SWI:
-		return "SWI"
-	case ABT:
-		return "ABT"
-	case UND:
-		return "UND"
-	case SYS:
-		return "SYS"
+	if s, ok := mode2str[m]; ok {
+		return s
 	}
 	return fmt.Sprintf("Unknown(%d)", m)
 }

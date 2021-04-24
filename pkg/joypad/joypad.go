@@ -1,6 +1,10 @@
 package joypad
 
-import "github.com/hajimehoshi/ebiten/v2"
+import (
+	"mettaur/pkg/util"
+
+	"github.com/hajimehoshi/ebiten/v2"
+)
 
 const (
 	A      = 0
@@ -20,29 +24,10 @@ type Joypad struct {
 }
 
 func (j *Joypad) Read() {
-	if btnA() {
-		j.Input[0] = j.Input[0] & ^byte(1)
-	} else {
-		j.Input[0] = j.Input[0] | byte(1)
-	}
-
-	if btnB() {
-		j.Input[0] = j.Input[0] & ^byte((1 << B))
-	} else {
-		j.Input[0] = j.Input[0] | byte((1 << B))
-	}
-
-	if btnSelect() {
-		j.Input[0] = j.Input[0] & ^byte((1 << Select))
-	} else {
-		j.Input[0] = j.Input[0] | byte((1 << Select))
-	}
-
-	if btnStart() {
-		j.Input[0] = j.Input[0] & ^byte((1 << Start))
-	} else {
-		j.Input[0] = j.Input[0] | byte((1 << Start))
-	}
+	j.Input[0] = util.SetBit8(j.Input[0], A, !btnA())
+	j.Input[0] = util.SetBit8(j.Input[0], B, !btnB())
+	j.Input[0] = util.SetBit8(j.Input[0], Select, !btnSelect())
+	j.Input[0] = util.SetBit8(j.Input[0], Start, !btnStart())
 	if btnRight() {
 		j.Input[0] = j.Input[0] & ^byte((1 << Right))
 		j.Input[0] = j.Input[0] | byte((1 << Left)) // off <-
@@ -67,16 +52,8 @@ func (j *Joypad) Read() {
 	} else {
 		j.Input[0] = j.Input[0] | byte((1 << Down))
 	}
-	if btnR() {
-		j.Input[1] = j.Input[1] & ^byte((1 << (R)))
-	} else {
-		j.Input[1] = j.Input[1] | byte((1 << (R)))
-	}
-	if btnL() {
-		j.Input[1] = j.Input[1] & ^byte((1 << (L)))
-	} else {
-		j.Input[1] = j.Input[1] | byte((1 << (L)))
-	}
+	j.Input[1] = util.SetBit8(j.Input[1], R, !btnR())
+	j.Input[1] = util.SetBit8(j.Input[1], L, !btnL())
 }
 
 func btnA() bool      { return ebiten.IsKeyPressed(ebiten.KeyX) }

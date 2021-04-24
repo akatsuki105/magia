@@ -214,13 +214,9 @@ func (g *GBA) squareSample(ch int) int8 {
 }
 
 func (g *GBA) enableSoundChan(ch int, enable bool) {
-	cntx := byte(g._getRAM(ram.SOUNDCNT_X))
-	if enable {
-		cntx = cntx | (1 << ch)
-	} else {
-		cntx = cntx & ^(1 << ch)
-	}
-	g.RAM.IO[ram.IOOffset(ram.SOUNDCNT_X)] = cntx
+	cntx := g._getRAM(ram.SOUNDCNT_X)
+	cntx = util.SetBit32(cntx, ch, enable)
+	g.RAM.IO[ram.IOOffset(ram.SOUNDCNT_X)] = byte(cntx)
 }
 
 func (g *GBA) isSoundMasterEnable() bool {
@@ -503,7 +499,7 @@ func (g *GBA) soundClock(cycles uint32) {
 	cnth := uint16(g._getRAM(ram.SOUNDCNT_H)) // snd_pcm_vol
 	volADiv, volBDiv := int16((cnth>>2)&0b1), int16((cnth>>3)&0b1)
 	sampCh4, sampCh5 := fifoASamp>>volADiv, fifoBSamp>>volBDiv
-	sampCh4, sampCh5 = 0, 0
+	// sampCh4, sampCh5 = 0, 0
 
 	// Left
 	if util.Bit(cnth, 9) {

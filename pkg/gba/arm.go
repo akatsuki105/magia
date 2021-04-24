@@ -985,7 +985,7 @@ func (g *GBA) armMRS(inst uint32) {
 	rd := (inst >> 12) & 0b1111
 	if useSpsr := util.Bit(inst, 22); useSpsr {
 		mode := g.getOSMode()
-		g.R[rd] = g.SPSRBank[bankIdx(mode)]
+		g.R[rd] = g.SPSRBank[bankIdx[mode]]
 		return
 	}
 
@@ -1035,7 +1035,7 @@ func (g *GBA) armMSR(inst uint32) {
 	psr &= mask
 
 	if r {
-		spsr := g.SPSRBank[bankIdx(g.getOSMode())]
+		spsr := g.SPSRBank[bankIdx[g.getOSMode()]]
 		g.setSPSR((spsr & ^mask) | psr)
 	} else {
 		currMode := g.getOSMode()

@@ -236,43 +236,10 @@ func armDecodeMPY(inst uint32) string {
 	}
 }
 
-func armDecodeALU(inst uint32) string {
-	opcode := ""
-	switch inst >> 21 & 0b1111 {
-	case 0x0:
-		opcode = "and"
-	case 0x1:
-		opcode = "eor"
-	case 0x2:
-		opcode = "sub"
-	case 0x3:
-		opcode = "rsb"
-	case 0x4:
-		opcode = "add"
-	case 0x5:
-		opcode = "adc"
-	case 0x6:
-		opcode = "sbc"
-	case 0x7:
-		opcode = "rsc"
-	case 0x8:
-		opcode = "tst"
-	case 0x9:
-		opcode = "teq"
-	case 0xa:
-		opcode = "cmp"
-	case 0xb:
-		opcode = "cmn"
-	case 0xc:
-		opcode = "orr"
-	case 0xd:
-		opcode = "mov"
-	case 0xe:
-		opcode = "bic"
-	case 0xf:
-		opcode = "mvn"
-	}
+var aluOp2str = map[uint32]string{0x0: "and", 0x1: "eor", 0x2: "sub", 0x3: "rsb", 0x4: "add", 0x5: "adc", 0x6: "sbc", 0x7: "rsc", 0x8: "tst", 0x9: "teq", 0xa: "cmp", 0xb: "cmn", 0xc: "orr", 0xd: "mov", 0xe: "bic", 0xf: "mvn"}
 
+func armDecodeALU(inst uint32) string {
+	opcode := aluOp2str[inst>>21&0b1111]
 	rd := inst >> 12 & 0b1111
 	rn := (inst >> 16) & 0b1111
 	op2 := ""

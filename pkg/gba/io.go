@@ -12,7 +12,7 @@ func (g *GBA) _getRAM(addr uint32) uint32 {
 	switch {
 	case gpu.IsIO(addr):
 		return util.LE32(g.GPU.IO[(addr - 0x0400_0000):])
-	case isWaveRAM(addr):
+	case g.in(addr, ram.WAVE_RAM, ram.WAVE_RAM+0xf):
 		bank := (g._getRAM(ram.SOUND3CNT_L) >> 2) & 0x10
 		idx := (bank ^ 0x10) | (addr & 0xf)
 		return util.LE32(waveRAM[idx:])
@@ -92,8 +92,8 @@ func (g *GBA) _setRAM(addr uint32, val uint32, width int) {
 		if util.Bit(byte(g._getRAM(ram.SOUNDCNT_X)), 7) {
 			for i := uint32(0); i < uint32(width); i++ {
 				g.RAM.Set8(addr+i, byte(val>>(8*i)))
-				if isResetSoundChan(addr) {
-					g.resetSoundChan(addr, byte(val>>(8*i)))
+				if isResetSoundChan(addr + i) {
+					g.resetSoundChan(addr+i, byte(val>>(8*i)))
 				}
 			}
 		}
@@ -118,7 +118,7 @@ func (g *GBA) _setRAM(addr uint32, val uint32, width int) {
 				g.RAM.IO[ram.IOOffset(i)] = 0
 			}
 		}
-	case isWaveRAM(addr):
+	case g.in(addr, ram.WAVE_RAM, ram.WAVE_RAM+0xf): // wave ram
 		for i := uint32(0); i < uint32(width); i++ {
 			bank := (g._getRAM(ram.SOUND3CNT_L) >> 2) & 0x10
 			idx := (bank ^ 0x10) | (addr & 0xf)

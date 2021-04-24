@@ -104,13 +104,25 @@ func Bit(val interface{}, idx int) bool {
 	return false
 }
 
-func AddC(res uint64) bool {
-	return res > 0xffffffff
+func SetBit32(val uint32, idx int, b bool) uint32 {
+	if b {
+		val = val | (1 << idx)
+	} else {
+		val = val & ^(1 << idx)
+	}
+	return val
+}
+func SetBit8(val byte, idx int, b bool) byte {
+	if b {
+		val = val | (1 << idx)
+	} else {
+		val = val & ^(1 << idx)
+	}
+	return val
 }
 
-func SubC(res uint64) bool {
-	return res < 0x100000000
-}
+func AddC(res uint64) bool { return res > 0xffffffff }
+func SubC(res uint64) bool { return res < 0x100000000 }
 
 func AddV(lhs, rhs, res uint32) bool {
 	v := ^(lhs ^ rhs) & (lhs ^ res) & 0x8000_0000
@@ -122,12 +134,8 @@ func SubV(lhs, rhs, res uint32) bool {
 	return v > 0
 }
 
-func Align4(val uint32) uint32 {
-	return val & 0b1111_1111_1111_1111_1111_1111_1111_1100
-}
-func Align2(val uint32) uint32 {
-	return val & 0b1111_1111_1111_1111_1111_1111_1111_1110
-}
+func Align4(val uint32) uint32 { return val & 0b1111_1111_1111_1111_1111_1111_1111_1100 }
+func Align2(val uint32) uint32 { return val & 0b1111_1111_1111_1111_1111_1111_1111_1110 }
 
 // LE32 reads 32bit little-endian value from byteslice
 func LE32(bs []byte) uint32 {
@@ -163,4 +171,13 @@ func FillImage(i *image.RGBA, c color.RGBA) {
 			i.Set(x, y, c)
 		}
 	}
+}
+
+func AddInt32(u uint32, i int32) uint32 {
+	if i > 0 {
+		u += uint32(i)
+	} else {
+		u -= uint32(-i)
+	}
+	return u
 }

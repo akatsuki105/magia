@@ -1,14 +1,10 @@
 package util
 
 // LSL logical left shift
-func LSL(val uint32, shiftAmount uint) uint32 {
-	return val << shiftAmount
-}
+func LSL(val uint32, shiftAmount uint) uint32 { return val << shiftAmount }
 
 // LSR logical right shift
-func LSR(val uint32, shiftAmount uint) uint32 {
-	return val >> shiftAmount
-}
+func LSR(val uint32, shiftAmount uint) uint32 { return val >> shiftAmount }
 
 // ASR arithmetic right shift
 func ASR(val uint32, shiftAmount uint) uint32 {

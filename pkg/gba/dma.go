@@ -14,16 +14,12 @@ const (
 )
 
 type DMA struct {
-	io [12]byte
+	io       [12]byte
+	src, dst uint32
 }
 
 func NewDMA() [4]*DMA       { return [4]*DMA{&DMA{}, &DMA{}, &DMA{}, &DMA{}} }
-func (ch *DMA) src() uint32 { return util.LE32(ch.io[:]) }
-func (ch *DMA) dst() uint32 { return util.LE32(ch.io[4:]) }
 func (ch *DMA) cnt() uint32 { return util.LE32(ch.io[8:]) }
-func (ch *DMA) setSrc(v uint32) {
-	ch.io[0], ch.io[1], ch.io[2], ch.io[3] = byte(v), byte(v>>8), byte(v>>16), byte(v>>24)
-}
 func (ch *DMA) setCnt(v uint32) {
 	ch.io[8], ch.io[9], ch.io[10], ch.io[11] = byte(v), byte(v>>8), byte(v>>16), byte(v>>24)
 }
@@ -32,30 +28,38 @@ func isDMA1IO(addr uint32) bool { return 0x0400_00BC <= addr && addr <= 0x0400_0
 func isDMA2IO(addr uint32) bool { return 0x0400_00C8 <= addr && addr <= 0x0400_00D3 }
 func isDMA3IO(addr uint32) bool { return 0x0400_00D4 <= addr && addr <= 0x0400_00DF }
 
-func (ch *DMA) get(ofs uint32) uint32 {
-	return util.LE32(ch.io[ofs:])
-}
+func (ch *DMA) get(ofs uint32) uint32 { return util.LE32(ch.io[ofs:]) }
 func (ch *DMA) set(ofs uint32, b byte) bool {
 	old := byte(ch.cnt() >> 24)
 	ch.io[ofs] = b
 	if ofs == 11 {
+		ch.src, ch.dst = util.LE32(ch.io[0:]), util.LE32(ch.io[4:])
+		switch ch.size() {
+		case 32:
+			ch.src &= ^uint32(3)
+			ch.dst &= ^uint32(3)
+		case 16:
+			ch.src &= ^uint32(1)
+			ch.dst &= ^uint32(1)
+		}
 		return !util.Bit(old, 7) && util.Bit(b, 7) && (ch.timing() == 0)
 	}
 	return false
 }
 
-func (ch *DMA) dstCnt() (int64, bool) {
+func (ch *DMA) dstCnt() int64 {
 	switch (ch.cnt() >> (16 + 5)) & 0b11 {
 	case 0:
-		return int64(ch.size()) / 8, false
+		return int64(ch.size()) / 8
 	case 1:
-		return -int64(ch.size()) / 8, false
+		return -int64(ch.size()) / 8
 	case 3:
-		return int64(ch.size()) / 8, true
+		return int64(ch.size()) / 8
 	default:
-		return 0, false
+		return 0
 	}
 }
+func (ch *DMA) dstReload() bool { return (ch.cnt()>>(16+5))&0b11 == 3 }
 func (ch *DMA) srcCnt() int64 {
 	switch (ch.cnt() >> (16 + 7)) & 0b11 {
 	case 0:
@@ -76,9 +80,7 @@ func (ch *DMA) size() int {
 func (ch *DMA) timing() dmaTiming { return dmaTiming((ch.cnt() >> (16 + 12)) & 0b11) }
 func (ch *DMA) irq() bool         { return util.Bit(ch.cnt(), 16+14) }
 func (ch *DMA) enabled() bool     { return util.Bit(ch.cnt(), 16+15) }
-func (ch *DMA) disable() {
-	ch.setCnt(ch.cnt() & 0x7fff_ffff)
-}
+func (ch *DMA) disable()          { ch.setCnt(ch.cnt() & 0x7fff_ffff) }
 func (ch *DMA) wordCount(i int) int {
 	wordCount := ch.cnt() & 0xffff
 	if wordCount == 0 {
@@ -99,18 +101,16 @@ func (g *GBA) dmaTransfer(t dmaTiming) {
 		g.timer(2)
 
 		wc, size := ch.wordCount(i), ch.size()
-		src, dst := ch.src(), ch.dst()
-		srcInc := ch.srcCnt()
-		dstInc, _ := ch.dstCnt()
+		srcInc, dstInc := ch.srcCnt(), ch.dstCnt()
 		for wc > 0 {
 			switch size {
 			case 16:
-				g.setRAM16(dst, g.getRAM16(src, true), true)
+				g.setRAM16(ch.dst, g.getRAM16(ch.src, true), true)
 			case 32:
-				g.setRAM32(dst, g.getRAM32(src, true), true)
+				g.setRAM32(ch.dst, g.getRAM32(ch.src, true), true)
 			}
 
-			dst, src = uint32(int64(dst)+dstInc), uint32(int64(src)+srcInc)
+			ch.dst, ch.src = uint32(int64(ch.dst)+dstInc), uint32(int64(ch.src)+srcInc)
 			wc--
 		}
 
@@ -120,6 +120,10 @@ func (g *GBA) dmaTransfer(t dmaTiming) {
 
 		if !ch.repeat() {
 			ch.disable()
+		}
+
+		if ch.dstReload() {
+			ch.dst = util.LE32(ch.io[4:])
 		}
 	}
 }
@@ -131,10 +135,10 @@ func (g *GBA) dmaTransferFifo(ch int) {
 	}
 
 	// 32bit × 4 = 4 words
-	src, dst, cnt := g.dma[ch].src(), g.dma[ch].dst(), g.dma[ch].cnt()
+	cnt := g.dma[ch].cnt()
 	for i := 0; i < 4; i++ {
-		val := g.getRAM32(src, true)
-		g.setRAM32(dst, val, true)
+		val := g.getRAM32(g.dma[ch].src, true)
+		g.setRAM32(g.dma[ch].dst, val, true)
 
 		if ch == 1 {
 			g.fifoACopy(val)
@@ -144,9 +148,9 @@ func (g *GBA) dmaTransferFifo(ch int) {
 
 		switch (cnt >> (16 + 7)) & 0b11 {
 		case 0:
-			src += 4
+			g.dma[ch].src += 4
 		case 1:
-			src -= 4
+			g.dma[ch].src -= 4
 		}
 	}
 
