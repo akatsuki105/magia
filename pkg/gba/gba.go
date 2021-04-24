@@ -81,7 +81,7 @@ func New(src []byte) *GBA {
 		timers:     newTimers(),
 	}
 	g._setRAM(ram.KEYINPUT, uint32(0x3ff), 2)
-	g.playSound()
+	g.apu.play()
 	return g
 }
 
@@ -90,7 +90,7 @@ func (g *GBA) Exit(s string) {
 	if debug {
 		g.PrintHistory()
 	}
-	g.exitAPU()
+	g.apu.exit()
 	panic("")
 }
 
@@ -160,8 +160,7 @@ func (g *GBA) exception(addr uint32, mode Mode) {
 
 // Update GBA by 1 frame
 func (g *GBA) Update() {
-	g.line = 0
-	g.GPU.IO[gpu.VCOUNT] = 0
+	g.line, g.GPU.IO[gpu.VCOUNT] = 0, 0
 
 	// line 0~159
 	for y := 0; y < 160; y++ {
@@ -189,7 +188,7 @@ func (g *GBA) Update() {
 		g.joypad.Read()
 	}
 
-	g.soundBufferWrap()
+	soundBufferWrap()
 	g.Frame++
 }
 
@@ -210,8 +209,7 @@ func (g *GBA) scanline() {
 	g.soundClock(1232)
 	g.GPU.SetHBlank(false)
 
-	vCount := g.GPU.IncrementVCount()
-	lyc := byte(g._getRAM(ram.DISPSTAT + 1))
+	vCount, lyc := g.GPU.IncrementVCount(), byte(g._getRAM(ram.DISPSTAT+1))
 	if vCount == lyc {
 		if util.Bit(dispstat, 5) {
 			g.triggerIRQ(irqVCount)
@@ -239,15 +237,16 @@ func (g *GBA) triggerIRQ(irq IRQID) {
 	// if |= flag
 	iack := uint16(g._getRAM(ram.IF))
 	iack = iack | (1 << irq)
-	g.RAM.IO[ram.IOOffset(ram.IF)] = byte(iack)
-	g.RAM.IO[ram.IOOffset(ram.IF+1)] = byte(iack >> 8)
+	g.RAM.IO[ram.IOOffset(ram.IF)], g.RAM.IO[ram.IOOffset(ram.IF+1)] = byte(iack), byte(iack>>8)
 
 	g.halt = false
-	g.pushIRQHistory(IRQHistory{
-		irq:   irq,
-		start: g.inst.loc,
-		reg:   g.Reg,
-	})
+	if debug {
+		g.pushIRQHistory(IRQHistory{
+			irq:   irq,
+			start: g.inst.loc,
+			reg:   g.Reg,
+		})
+	}
 	g.checkIRQ()
 }
 
@@ -296,16 +295,6 @@ func (g *GBA) cycleS2N() int {
 	return n - s
 }
 
-/*
-* Adjust PC based on exception
-* Exc  ARM  Thumb
-* DA   $+8  $+8
-* FIQ  $+4  $+4
-* IRQ  $+4  $+4
-* PA   $+4  $+4
-* UND  $+4  $+2
-* SVC  $+4  $+2
- */
 func (g *GBA) exceptionReturn(vec uint32) uint32 {
 	pc := g.R[15]
 
@@ -338,4 +327,8 @@ func (g *GBA) LoadSav(bs []byte) {
 	for i, b := range bs {
 		g.RAM.SRAM[i] = b
 	}
+}
+
+func (g *GBA) in(addr, start, end uint32) bool {
+	return addr >= start && addr <= end
 }

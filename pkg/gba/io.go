@@ -88,7 +88,7 @@ func (g *GBA) _setRAM(addr uint32, val uint32, width int) {
 		for i := uint32(0); i < uint32(width); i++ {
 			g.GPU.IO[addr-0x0400_0000+i] = byte(val >> (8 * i))
 		}
-	case isSoundIO(addr):
+	case g.in(addr, ram.SOUND1CNT_L, ram.SOUNDCNT_L+1): // sound io
 		if util.Bit(byte(g._getRAM(ram.SOUNDCNT_X)), 7) {
 			for i := uint32(0); i < uint32(width); i++ {
 				g.RAM.Set8(addr+i, byte(val>>(8*i)))
@@ -97,21 +97,17 @@ func (g *GBA) _setRAM(addr uint32, val uint32, width int) {
 				}
 			}
 		}
-	case addr == ram.SOUNDCNT_H+1:
+	case addr == ram.SOUNDCNT_H:
 		for i := uint32(0); i < uint32(width); i++ {
-			if util.Bit(byte(val>>(8*i)), 3) {
-				fifoA = [32]int8{}
-				fifoALen = 0
-			}
 			g.RAM.Set8(addr+i, byte(val>>(8*i)))
 		}
-	case addr == ram.SOUNDCNT_H+3:
-		for i := uint32(0); i < uint32(width); i++ {
-			if util.Bit(byte(val>>(8*i)), 7) {
-				fifoB = [32]int8{}
-				fifoBLen = 0
-			}
-			g.RAM.Set8(addr+i, byte(val>>(8*i)))
+		if util.Bit(val, 11) {
+			fifoA = [32]int8{}
+			fifoALen = 0
+		}
+		if util.Bit(val, 15) {
+			fifoB = [32]int8{}
+			fifoBLen = 0
 		}
 	case addr == ram.SOUNDCNT_X:
 		old := byte(g._getRAM(addr))

@@ -8,26 +8,26 @@ import (
 
 func armDecode(pc, inst uint32) string {
 	switch {
-	case IsArmSWI(inst):
+	case isArmSWI(inst):
 		nn := byte(inst >> 16)
 		return fmt.Sprintf("swi 0x%x", nn)
-	case IsArmBranch(inst) || IsArmBX(inst):
+	case isArmB(inst) || isArmBL(inst) || isArmBX(inst):
 		return armDecodeBranch(pc, inst)
-	case IsArmLDM(inst) || IsArmSTM(inst):
+	case isArmLDM(inst) || isArmSTM(inst):
 		return armDecodeStack(inst)
-	case IsArmLDR(inst) || IsArmSTR(inst):
+	case isArmLDR(inst) || isArmSTR(inst):
 		return armDecodeLDRSTR(inst)
-	case IsArmLDRH(inst) || IsArmLDRSB(inst) || IsArmLDRSH(inst) || IsArmSTRH(inst):
+	case isArmLDRH(inst) || isArmLDRSB(inst) || isArmLDRSH(inst) || isArmSTRH(inst):
 		return armDecodeLDRSTR2(inst)
-	case IsArmMRS(inst):
+	case isArmMRS(inst):
 		return armDecodeMRS(inst)
-	case IsArmMSR(inst):
+	case isArmMSR(inst):
 		return armDecodeMSR(inst)
-	case IsArmSWP(inst):
+	case isArmSWP(inst):
 		return fmt.Sprintf("SWI is unsupported in 0x%08x", pc)
-	case IsArmMPY(inst):
+	case isArmMPY(inst):
 		return armDecodeMPY(inst)
-	case IsArmALU(inst):
+	case isArmALU(inst):
 		return armDecodeALU(inst)
 	default:
 		return fmt.Sprintf("invalid ARM opcode(0x%08x) in 0x%08x\n", inst, pc)
@@ -36,13 +36,12 @@ func armDecode(pc, inst uint32) string {
 
 func armDecodeBranch(pc, inst uint32) string {
 	switch {
-	case IsArmBX(inst):
+	case isArmBX(inst):
 		rn := inst & 0b1111
 		return fmt.Sprintf("bx r%d", rn)
 	case util.Bit(inst, 24):
 		nn := int32(inst)
-		nn <<= 8
-		nn >>= 6
+		nn = (nn << 8) >> 6
 		if nn >= 0 {
 			return fmt.Sprintf("bl 0x%08x", pc+8+uint32(nn))
 		} else {
@@ -50,8 +49,7 @@ func armDecodeBranch(pc, inst uint32) string {
 		}
 	default:
 		nn := int32(inst)
-		nn <<= 8
-		nn >>= 6
+		nn = (nn << 8) >> 6
 		if nn >= 0 {
 			return fmt.Sprintf("b 0x%08x", pc+8+uint32(nn))
 		} else {

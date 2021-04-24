@@ -51,10 +51,6 @@ func (g *GBA) breakpoint() {
 	// }
 }
 
-func (g *GBA) in(start, end uint32) bool {
-	return g.inst.loc >= start && g.inst.loc <= end
-}
-
 func (g *GBA) thumbInst(inst uint16) {
 	if inst != 0 {
 		fmt.Printf("Thumb pc, inst, cycle: 0x%04x, 0x%02x, %d:%d\n", g.inst.loc, inst, g.line, g.cycle)

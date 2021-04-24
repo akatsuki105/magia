@@ -16,6 +16,7 @@ var (
 	wsS1 = [2]int{4, 1}
 	wsS2 = [2]int{8, 1}
 )
+var periods = map[byte]int{0: 1, 1: 64, 2: 256, 3: 1024}
 
 func (g *GBA) cycleN(addr uint32) int {
 	switch {
@@ -61,7 +62,6 @@ func (g *GBA) cycleS(addr uint32) int {
 
 func (g *GBA) waitBus(addr uint32, size int, s bool) int {
 	busWidth := ram.BusWidth(addr)
-
 	if busWidth == 8 {
 		return 5 * (size / 8)
 	}
@@ -71,24 +71,21 @@ func (g *GBA) waitBus(addr uint32, size int, s bool) int {
 			return 2 * g.cycleS(addr)
 		}
 		return g.cycleN(addr) + g.cycleS(addr+2)
-	} else {
-		if s {
-			return g.cycleS(addr)
-		}
-		return g.cycleN(addr)
 	}
+
+	if s {
+		return g.cycleS(addr)
+	}
+	return g.cycleN(addr)
 }
 
-func (g *GBA) timer(cycle int) {
-	for cycle > 0 {
-		g.cycle++
-		irqs := g.Tick()
-		for i, irq := range irqs {
-			if irq {
-				g.triggerIRQ(IRQID(i + 3))
-			}
+func (g *GBA) timer(c int) {
+	g.cycle += c
+	irqs := g.Tick(c)
+	for i, irq := range irqs {
+		if irq {
+			g.triggerIRQ(IRQID(i + 3))
 		}
-		cycle--
 	}
 }
 
@@ -105,27 +102,13 @@ type Timer struct {
 	Control byte
 }
 
-func (t *Timer) period() int {
-	switch t.Control & 0b11 {
-	case 0:
-		return 1
-	case 1:
-		return 64
-	case 2:
-		return 256
-	default:
-		return 1024
-	}
-}
 func (t *Timer) cascade() bool { return util.Bit(t.Control, 2) }
 func (t *Timer) irq() bool     { return util.Bit(t.Control, 6) }
 func (t *Timer) enable() bool  { return util.Bit(t.Control, 7) }
-func (t *Timer) increment() bool {
-	t.Next = t.period()
+func (t *Timer) increment(inc int) bool {
 	previous := t.Count
-	t.Count++
-	current := t.Count
-	return current < previous // if overflow occurs
+	t.Count += uint16(inc)
+	return t.Count < previous // if overflow occurs
 }
 func (t *Timer) overflow() bool {
 	t.Count = t.Reload
@@ -137,8 +120,7 @@ func IsTimerIO(addr uint32) bool {
 	return (addr >= 0x0400_0100) && (addr < 0x0400_0110)
 }
 func (ts *Timers) GetIO(offset uint32) uint32 {
-	idx := offset / 4
-	ofs := offset % 4
+	idx, ofs := offset/4, offset%4
 	switch ofs {
 	case 0:
 		return uint32(ts[idx].Control)<<16 | uint32(ts[idx].Count)
@@ -153,8 +135,7 @@ func (ts *Timers) GetIO(offset uint32) uint32 {
 }
 
 func (ts *Timers) SetIO(offset uint32, b byte) {
-	idx := offset / 4
-	ofs := offset % 4
+	idx, ofs := offset/4, offset%4
 	switch ofs {
 	case 0:
 		ts[idx].Reload = (ts[idx].Reload & 0xff00) | uint16(b)
@@ -170,24 +151,27 @@ func (ts *Timers) SetIO(offset uint32, b byte) {
 	}
 }
 
-func (g *GBA) Tick() [4]bool {
+var clockShift = [4]byte{0, 6, 8, 10}
+
+func (g *GBA) Tick(cycles int) [4]bool {
 	overflow, irq := false, [4]bool{}
 	ts := &g.timers
+
 	if ts[0].enable() {
-		if ts[0].Next > 0 {
-			ts[0].Next--
-		}
-		if ts[0].Next == 0 {
-			overflow = ts[0].increment()
+		ts[0].Next += cycles
+		inc := ts[0].Next >> clockShift[ts[0].Control&0b11]
+		if inc > 0 {
+			ts[0].Next -= inc << clockShift[ts[0].Control&0b11]
+			overflow = ts[0].increment(inc)
 			if overflow {
 				cnth := uint16(g._getRAM(ram.SOUNDCNT_H))
-				if (cnth>>SoundATimer)&1 == 0 {
+				if !util.Bit(cnth, SoundATimer) {
 					g.fifoALoad()
-					if fifoALen <= 0x10 {
+					if fifoALen <= 0x10 { // Request more data per DMA
 						g.dmaTransferFifo(1)
 					}
 				}
-				if (cnth>>SoundBTimer)&1 == 0 {
+				if !util.Bit(cnth, SoundBTimer) {
 					g.fifoBLoad()
 					if fifoBLen <= 0x10 {
 						g.dmaTransferFifo(2)
@@ -206,29 +190,29 @@ func (g *GBA) Tick() [4]bool {
 			continue
 		}
 
-		countUp := false
+		inc := 0
 		if ts[i].cascade() {
-			countUp = overflow
-		} else {
-			if ts[i].Next > 0 {
-				ts[i].Next--
+			if overflow {
+				inc = 1
 			}
-			countUp = ts[i].Next == 0
+		} else {
+			ts[i].Next += cycles
+			inc = ts[i].Next >> clockShift[ts[i].Control&0b11]
+			ts[i].Next -= inc << clockShift[ts[i].Control&0b11]
 		}
-		overflow = false
 
-		if countUp {
-			overflow = ts[i].increment()
+		if inc > 0 {
+			overflow = ts[i].increment(inc)
 			if overflow {
 				if i == 1 {
 					cnth := uint16(g._getRAM(ram.SOUNDCNT_H))
-					if (cnth>>SoundATimer)&1 == 1 {
+					if util.Bit(cnth, SoundATimer) {
 						g.fifoALoad()
 						if fifoALen <= 0x10 {
 							g.dmaTransferFifo(1)
 						}
 					}
-					if (cnth>>SoundBTimer)&1 == 1 {
+					if util.Bit(cnth, SoundBTimer) {
 						g.fifoBLoad()
 						if fifoBLen <= 0x10 {
 							g.dmaTransferFifo(2)

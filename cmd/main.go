@@ -61,7 +61,7 @@ func Run() ExitCode {
 
 	flag.Parse()
 	if *showVersion {
-		printVersion()
+		fmt.Println(title+":", version)
 		return ExitCodeOK
 	}
 
@@ -90,16 +90,12 @@ func Run() ExitCode {
 	}
 
 	ebiten.SetWindowResizable(true)
-	ebiten.SetWindowTitle(title)
+	ebiten.SetWindowTitle(emu.gba.CartHeader.Title)
 	ebiten.SetWindowSize(240*2, 160*2)
 	if err := ebiten.RunGame(emu); err != nil {
 		fmt.Fprintf(os.Stderr, "crash in emulation: %s\n", err)
 	}
 	return ExitCodeOK
-}
-
-func printVersion() {
-	fmt.Println(title+":", version)
 }
 
 func readROM(path string) ([]byte, error) {

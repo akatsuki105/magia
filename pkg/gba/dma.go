@@ -22,16 +22,10 @@ func (ch *DMA) src() uint32 { return util.LE32(ch.io[:]) }
 func (ch *DMA) dst() uint32 { return util.LE32(ch.io[4:]) }
 func (ch *DMA) cnt() uint32 { return util.LE32(ch.io[8:]) }
 func (ch *DMA) setSrc(v uint32) {
-	ch.io[0] = byte(v)
-	ch.io[1] = byte(v >> 8)
-	ch.io[2] = byte(v >> 16)
-	ch.io[3] = byte(v >> 24)
+	ch.io[0], ch.io[1], ch.io[2], ch.io[3] = byte(v), byte(v>>8), byte(v>>16), byte(v>>24)
 }
 func (ch *DMA) setCnt(v uint32) {
-	ch.io[8] = byte(v)
-	ch.io[9] = byte(v >> 8)
-	ch.io[10] = byte(v >> 16)
-	ch.io[11] = byte(v >> 24)
+	ch.io[8], ch.io[9], ch.io[10], ch.io[11] = byte(v), byte(v>>8), byte(v>>16), byte(v>>24)
 }
 func isDMA0IO(addr uint32) bool { return 0x0400_00B0 <= addr && addr <= 0x0400_00BB }
 func isDMA1IO(addr uint32) bool { return 0x0400_00BC <= addr && addr <= 0x0400_00C7 }
@@ -98,19 +92,13 @@ func (ch *DMA) wordCount(i int) int {
 
 func (g *GBA) dmaTransfer(t dmaTiming) {
 	for i, ch := range g.dma {
-		if !ch.enabled() {
-			continue
-		}
-		if ch.timing() != t {
+		if !ch.enabled() || ch.timing() != t {
 			continue
 		}
 
-		// fmt.Printf("DMA%d start", i)
 		g.timer(2)
 
-		wc := ch.wordCount(i)
-		size := ch.size()
-
+		wc, size := ch.wordCount(i), ch.size()
 		src, dst := ch.src(), ch.dst()
 		srcInc := ch.srcCnt()
 		dstInc, _ := ch.dstCnt()
@@ -122,9 +110,7 @@ func (g *GBA) dmaTransfer(t dmaTiming) {
 				g.setRAM32(dst, g.getRAM32(src, true), true)
 			}
 
-			dst = uint32(int64(dst) + dstInc)
-			src = uint32(int64(src) + srcInc)
-
+			dst, src = uint32(int64(dst)+dstInc), uint32(int64(src)+srcInc)
 			wc--
 		}
 
@@ -138,28 +124,29 @@ func (g *GBA) dmaTransfer(t dmaTiming) {
 	}
 }
 
+// Receive 4 x 32bit (16 bytes) per DMA
 func (g *GBA) dmaTransferFifo(ch int) {
 	if !g.isSoundMasterEnable() || !g.dma[ch].enabled() || g.dma[ch].timing() != dmaSpecial {
 		return
 	}
 
 	// 32bit × 4 = 4 words
-	dst := g.dma[ch].dst()
+	src, dst, cnt := g.dma[ch].src(), g.dma[ch].dst(), g.dma[ch].cnt()
 	for i := 0; i < 4; i++ {
-		src := g.dma[ch].src()
-		g.setRAM32(dst, g.getRAM32(src, true), true)
+		val := g.getRAM32(src, true)
+		g.setRAM32(dst, val, true)
 
 		if ch == 1 {
-			g.fifoACopy()
+			g.fifoACopy(val)
 		} else {
-			g.fifoBCopy()
+			g.fifoBCopy(val)
 		}
 
-		switch (g.dma[ch].cnt() >> (16 + 7)) & 0b11 {
+		switch (cnt >> (16 + 7)) & 0b11 {
 		case 0:
-			g.dma[ch].setSrc(src + 4)
+			src += 4
 		case 1:
-			g.dma[ch].setSrc(src - 4)
+			src -= 4
 		}
 	}
 
