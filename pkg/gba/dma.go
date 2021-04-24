@@ -14,11 +14,14 @@ const (
 )
 
 type DMA struct {
-	io       [12]byte
-	src, dst uint32
+	io                  [12]byte
+	src, dst            uint32
+	count, defaultCount int
 }
 
-func NewDMA() [4]*DMA       { return [4]*DMA{&DMA{}, &DMA{}, &DMA{}, &DMA{}} }
+func NewDMA() [4]*DMA {
+	return [4]*DMA{&DMA{defaultCount: 0x4000}, &DMA{defaultCount: 0x4000}, &DMA{defaultCount: 0x4000}, &DMA{defaultCount: 0x10000}}
+}
 func (ch *DMA) cnt() uint32 { return util.LE32(ch.io[8:]) }
 func (ch *DMA) setCnt(v uint32) {
 	ch.io[8], ch.io[9], ch.io[10], ch.io[11] = byte(v), byte(v>>8), byte(v>>16), byte(v>>24)
@@ -33,16 +36,21 @@ func (ch *DMA) set(ofs uint32, b byte) bool {
 	old := byte(ch.cnt() >> 24)
 	ch.io[ofs] = b
 	if ofs == 11 {
-		ch.src, ch.dst = util.LE32(ch.io[0:]), util.LE32(ch.io[4:])
-		switch ch.size() {
-		case 32:
-			ch.src &= ^uint32(3)
-			ch.dst &= ^uint32(3)
-		case 16:
-			ch.src &= ^uint32(1)
-			ch.dst &= ^uint32(1)
+		turnon := !util.Bit(old, 7) && util.Bit(b, 7)
+		if turnon {
+			ch.src, ch.dst = util.LE32(ch.io[0:]), util.LE32(ch.io[4:])
+			ch.count = ch.wordCount()
+			switch ch.size() {
+			case 32:
+				ch.src &= ^uint32(3)
+				ch.dst &= ^uint32(3)
+			case 16:
+				ch.src &= ^uint32(1)
+				ch.dst &= ^uint32(1)
+			}
 		}
-		return !util.Bit(old, 7) && util.Bit(b, 7) && (ch.timing() == 0)
+
+		return turnon && ch.timing() == 0
 	}
 	return false
 }
@@ -81,13 +89,10 @@ func (ch *DMA) timing() dmaTiming { return dmaTiming((ch.cnt() >> (16 + 12)) & 0
 func (ch *DMA) irq() bool         { return util.Bit(ch.cnt(), 16+14) }
 func (ch *DMA) enabled() bool     { return util.Bit(ch.cnt(), 16+15) }
 func (ch *DMA) disable()          { ch.setCnt(ch.cnt() & 0x7fff_ffff) }
-func (ch *DMA) wordCount(i int) int {
+func (ch *DMA) wordCount() int {
 	wordCount := ch.cnt() & 0xffff
 	if wordCount == 0 {
-		wordCount = 0x4000
-		if i == 3 {
-			wordCount = 0x10000
-		}
+		return ch.defaultCount
 	}
 	return int(wordCount)
 }
@@ -98,11 +103,9 @@ func (g *GBA) dmaTransfer(t dmaTiming) {
 			continue
 		}
 
-		g.timer(2)
-
-		wc, size := ch.wordCount(i), ch.size()
+		size := ch.size()
 		srcInc, dstInc := ch.srcCnt(), ch.dstCnt()
-		for wc > 0 {
+		for ch.count > 0 {
 			switch size {
 			case 16:
 				g.setRAM16(ch.dst, g.getRAM16(ch.src, true), true)
@@ -111,19 +114,20 @@ func (g *GBA) dmaTransfer(t dmaTiming) {
 			}
 
 			ch.dst, ch.src = uint32(int64(ch.dst)+dstInc), uint32(int64(ch.src)+srcInc)
-			wc--
+			ch.count--
 		}
 
 		if ch.irq() {
 			g.triggerIRQ(IRQID(irqDMA0 + i))
 		}
 
-		if !ch.repeat() {
+		if ch.repeat() {
+			ch.count = ch.wordCount()
+			if ch.dstReload() {
+				ch.dst = util.LE32(ch.io[4:])
+			}
+		} else {
 			ch.disable()
-		}
-
-		if ch.dstReload() {
-			ch.dst = util.LE32(ch.io[4:])
 		}
 	}
 }

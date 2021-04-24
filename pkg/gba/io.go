@@ -17,13 +17,13 @@ func (g *GBA) _getRAM(addr uint32) uint32 {
 		idx := (bank ^ 0x10) | (addr & 0xf)
 		return util.LE32(waveRAM[idx:])
 	case isDMA0IO(addr):
-		return g.dma[0].get(addr - 0x0400_00b0)
+		return g.dma[0].get(addr - ram.DMA0SAD)
 	case isDMA1IO(addr):
-		return g.dma[1].get(addr - 0x0400_00bc)
+		return g.dma[1].get(addr - ram.DMA1SAD)
 	case isDMA2IO(addr):
-		return g.dma[2].get(addr - 0x0400_00c8)
+		return g.dma[2].get(addr - ram.DMA2SAD)
 	case isDMA3IO(addr):
-		return g.dma[3].get(addr - 0x0400_00d4)
+		return g.dma[3].get(addr - ram.DMA3SAD)
 	case IsTimerIO(addr):
 		return g.timers.GetIO(addr - 0x0400_0100)
 	case addr == ram.KEYINPUT || addr == ram.KEYINPUT+1:

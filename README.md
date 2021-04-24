@@ -45,16 +45,26 @@ $ ./build/darwin-amd64/mettaur XXXX.gba
 
 ## ToDo
 
-- [ ] Sound DMA
-- [ ] Clear sound
 - [ ] Window
 - [ ] Mosaic
 - [ ] Blend
 - [ ] GUI
 - [ ] Serial communication
 - [ ] BG mode5
+- [ ] GameBoy Compatibility
 - [ ] Debug feature
 - [ ] Fix some bugs
+
+## Game Compatibility List
+
+| Game Title             | Compatibility      |
+| -------------------- | ------------- |
+| バトルネットワーク ロックマンエグゼ3 BLACK | ✅ |
+| ロックマンエグゼ4 トーナメント ブルームーン | ✅ |
+| ロックマンエグゼ6 電脳獣グレイガ・電脳獣ファルザー | ✅ |
+| ポケットモンスター ファイアレッド | ✅ |
+| ドラゴンクエストモンスターズ キャラバンハート | 🔺 |
+
 
 ## References
 

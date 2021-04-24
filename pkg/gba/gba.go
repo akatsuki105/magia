@@ -103,7 +103,7 @@ func (g *GBA) exec(cycles int) {
 	for g.cycle < cycles {
 		g.step()
 		if g.halt {
-			g.cycle = cycles
+			g.timer(cycles - g.cycle)
 		}
 	}
 	g.cycle -= cycles
