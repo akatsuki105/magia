@@ -540,11 +540,11 @@ func (g *GBA) armADD(inst uint32) {
 }
 
 func (g *GBA) armADC(inst uint32) {
-	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
 	carry := uint32(0)
 	if g.GetCPSRFlag(flagC) {
 		carry = 1
 	}
+	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
 	g.R[rd] = rnval + op2 + carry
 
 	s := util.Bit(inst, 20)
@@ -563,11 +563,11 @@ func (g *GBA) armADC(inst uint32) {
 }
 
 func (g *GBA) armSBC(inst uint32) {
-	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
 	carry := uint32(0)
 	if g.GetCPSRFlag(flagC) {
 		carry = 1
 	}
+	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
 	g.R[rd] = rnval - op2 + carry - 1
 
 	s := util.Bit(inst, 20)
@@ -586,11 +586,11 @@ func (g *GBA) armSBC(inst uint32) {
 }
 
 func (g *GBA) armRSC(inst uint32) {
-	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
 	carry := uint32(0)
 	if g.GetCPSRFlag(flagC) {
 		carry = 1
 	}
+	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
 	g.R[rd] = op2 - rnval + carry - 1
 
 	s := util.Bit(inst, 20)
@@ -986,7 +986,11 @@ func (g *GBA) armMRS(inst uint32) {
 	rd := (inst >> 12) & 0b1111
 	if useSpsr := util.Bit(inst, 22); useSpsr {
 		mode := g.getOSMode()
-		g.R[rd] = g.SPSRBank[bankIdx[mode]]
+		bank := bankIdx[mode]
+		if bank >= 5 {
+			return
+		}
+		g.R[rd] = g.SPSRBank[bank]
 		return
 	}
 
@@ -1036,7 +1040,11 @@ func (g *GBA) armMSR(inst uint32) {
 	psr &= mask
 
 	if r {
-		spsr := g.SPSRBank[bankIdx[g.getOSMode()]]
+		bank := bankIdx[g.getOSMode()]
+		if bank >= 5 {
+			return
+		}
+		spsr := g.SPSRBank[bank]
 		g.setSPSR((spsr & ^mask) | psr)
 	} else {
 		currMode := g.getOSMode()
