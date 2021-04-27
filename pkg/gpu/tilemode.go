@@ -7,8 +7,8 @@ import (
 
 func (g *GPU) drawTextBG(screen *image.RGBA, idx int) {
 	bgCnt := util.LE16(g.IO[BG0CNT+2*idx:])
-	width, height := 256, 256
 	x := [2]uint32{1, 1}
+	width, height := 256, 256
 	switch (bgCnt >> 14) & 0b11 {
 	case 1:
 		x[0] = 2
@@ -20,10 +20,12 @@ func (g *GPU) drawTextBG(screen *image.RGBA, idx int) {
 		x[0], x[1] = 2, 2
 		width, height = 512, 512
 	}
-	vScreen := image.NewRGBA(image.Rect(0, 0, width, height))
 
 	tileBlock, colorMode, mapBlock := ((uint32(bgCnt)>>2)&0b11)*0x4000, (bgCnt>>7)&0b1, ((uint32(bgCnt)>>8)&0b11111)*0x0800
 
+	mask := uint16(0b0000_0001_1111_1111)
+	scrollX, scrollY := int(util.LE16(g.IO[BG0HOFS+idx*4:])&mask), int(util.LE16(g.IO[BG0VOFS+idx*4:])&mask)
+	win0Enable, win1Enable, objWinEnable := util.Bit(g.IO[DISPCNT+1], 5), util.Bit(g.IO[DISPCNT+1], 6), util.Bit(g.IO[DISPCNT+1], 7)
 	xTiles, yTiles := 32*x[0], 32*x[1]
 	for yTile := uint32(0); yTile < yTiles; yTile++ {
 		for xTile := uint32(0); xTile < xTiles; xTile++ {
@@ -34,7 +36,7 @@ func (g *GPU) drawTextBG(screen *image.RGBA, idx int) {
 				tileData := g.VRAM[tileBlock+32*tileIdx:]
 				for y := uint32(0); y < 8; y++ {
 					for x := uint32(0); x < 8; x += 2 {
-						c := tileData[y*4+x/2]
+						colorIdx := tileData[y*4+x/2]
 
 						xCoord0, xCoord1, yCoord := int(xTile*8+x), int(xTile*8+x+1), int(yTile*8+y)
 						if flipX {
@@ -44,8 +46,28 @@ func (g *GPU) drawTextBG(screen *image.RGBA, idx int) {
 						if flipY {
 							yCoord = int(yTile*8 + (7 - y))
 						}
-						set(vScreen, xCoord0, yCoord, g.paletteColor(paletteIdx, int(c&0b1111)))
-						set(vScreen, xCoord1, yCoord, g.paletteColor(paletteIdx, int((c>>4)&0b1111)))
+
+						sx, sy, c := (xCoord0-scrollX+2*width)%width, (yCoord-scrollY+4*height)%height, g.paletteColor(paletteIdx, int(colorIdx&0b1111))
+						if win0Enable && g.inWindow0(sx, sy) && util.Bit(g.IO[WININ], idx) {
+							set(screen, sx, sy, c)
+						} else if win1Enable && g.inWindow1(sx, sy) && util.Bit(g.IO[WININ+1], idx) {
+							set(screen, sx, sy, c)
+						} else if objWinEnable && g.inObjWindow(sx, sy) && util.Bit(g.IO[WINOUT+1], idx) {
+							set(screen, sx, sy, c)
+						} else {
+							set(screen, sx, sy, c)
+						}
+
+						sx, c = (xCoord1-scrollX+2*width)%width, g.paletteColor(paletteIdx, int((colorIdx>>4)&0b1111))
+						if win0Enable && g.inWindow0(sx, sy) && util.Bit(g.IO[WININ], idx) {
+							set(screen, sx, sy, c)
+						} else if win1Enable && g.inWindow1(sx, sy) && util.Bit(g.IO[WININ+1], idx) {
+							set(screen, sx, sy, c)
+						} else if objWinEnable && g.inObjWindow(sx, sy) && util.Bit(g.IO[WINOUT+1], idx) {
+							set(screen, sx, sy, c)
+						} else {
+							set(screen, sx, sy, c)
+						}
 					}
 				}
 			} else {
@@ -59,32 +81,19 @@ func (g *GPU) drawTextBG(screen *image.RGBA, idx int) {
 						if flipY {
 							yCoord = int(yTile*8 + (7 - y))
 						}
-						set(vScreen, xCoord, yCoord, g.paletteColor(-1, int(tileData[y*8+x])))
+
+						sx, sy, c := (xCoord-scrollX+2*width)%width, (yCoord-scrollY+2*height)%height, g.paletteColor(-1, int(tileData[y*8+x]))
+						if win0Enable && g.inWindow0(sx, sy) && util.Bit(g.IO[WININ], idx) {
+							set(screen, sx, sy, c)
+						} else if win1Enable && g.inWindow1(sx, sy) && util.Bit(g.IO[WININ+1], idx) {
+							set(screen, sx, sy, c)
+						} else if objWinEnable && g.inObjWindow(sx, sy) && util.Bit(g.IO[WINOUT+1], idx) {
+							set(screen, sx, sy, c)
+						} else {
+							set(screen, sx, sy, c)
+						}
 					}
 				}
-			}
-		}
-	}
-
-	mask := uint16(0b0000_0001_1111_1111)
-	scrollX, scrollY := int(util.LE16(g.IO[BG0HOFS+idx*4:])&mask), int(util.LE16(g.IO[BG0VOFS+idx*4:])&mask)
-	win0Enable, win1Enable, objWinEnable := util.Bit(g.IO[DISPCNT+1], 5), util.Bit(g.IO[DISPCNT+1], 6), util.Bit(g.IO[DISPCNT+1], 7)
-	for y := 0; y < 160; y++ {
-		for x := 0; x < 240; x++ {
-			if win0Enable && g.inWindow0(x, y) {
-				if g.IO[WININ]>>idx&0b1 == 0b1 {
-					set(screen, x, y, vScreen.At((x+scrollX)%width, (y+scrollY)%height))
-				}
-			} else if win1Enable && g.inWindow1(x, y) {
-				if g.IO[WININ+1]>>idx&0b1 == 0b1 {
-					set(screen, x, y, vScreen.At((x+scrollX)%width, (y+scrollY)%height))
-				}
-			} else if objWinEnable && g.inObjWindow(x, y) {
-				if g.IO[WINOUT+1]>>idx&0b1 == 0b1 {
-					set(screen, x, y, vScreen.At((x+scrollX)%width, (y+scrollY)%height))
-				}
-			} else {
-				set(screen, x, y, vScreen.At((x+scrollX)%width, (y+scrollY)%height))
 			}
 		}
 	}

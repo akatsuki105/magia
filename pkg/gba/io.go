@@ -74,10 +74,8 @@ func (g *GBA) setRAM8(addr uint32, b byte, s bool) {
 func (g *GBA) _setRAM(addr uint32, val uint32, width int) {
 	defer func() {
 		if err := recover(); err != nil {
-			s := fmt.Sprintln(err)
-			if strings.Contains(s, "runtime error: index out of range") {
-				msg := fmt.Sprintf("access to 0x%08x(%v)", addr, err)
-				panic(msg)
+			if strings.Contains(fmt.Sprintln(err), "runtime error: index out of range") {
+				panic(fmt.Sprintf("access to 0x%08x(%v)", addr, err))
 			}
 			panic(err)
 		}

@@ -388,7 +388,7 @@ func (g *GBA) thumbStack(inst uint16) {
 			n++
 		}
 		for i := 7; i >= 0; i-- {
-			if rlist&(0b1<<i) > 0 {
+			if util.Bit(rlist, i) {
 				g.R[13] -= 4
 				g.setRAM32(g.R[13], g.R[i], n > 0) // PUSH
 				n++
@@ -398,7 +398,7 @@ func (g *GBA) thumbStack(inst uint16) {
 	case 1:
 		n := 0
 		for i := 0; i < 8; i++ {
-			if rlist&(0b1<<i) > 0 {
+			if util.Bit(rlist, i) {
 				g.R[i] = g.getRAM32(g.R[13], n > 0) // POP
 				g.R[13] += 4
 				n++
@@ -422,7 +422,7 @@ func (g *GBA) thumbStackMultiple(inst uint16) {
 	case 0:
 		n := 0
 		for i := 0; i < 8; i++ {
-			if rlist&(0b1<<i) > 0 {
+			if util.Bit(rlist, i) {
 				g.setRAM32(g.R[rb], g.R[i], n > 0) // STMIA
 				g.R[rb] += 4
 				n++
@@ -432,7 +432,7 @@ func (g *GBA) thumbStackMultiple(inst uint16) {
 	case 1:
 		n := 0
 		for i := 0; i < 8; i++ {
-			if rlist&(0b1<<i) > 0 {
+			if util.Bit(rlist, i) {
 				g.R[i] = g.getRAM32(g.R[rb], n > 0) // LDMIA
 				g.R[rb] += 4
 				n++

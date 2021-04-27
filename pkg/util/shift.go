@@ -17,6 +17,7 @@ func ASR(val uint32, shiftAmount uint) uint32 {
 
 // ROR rotate val's bit by shift
 func ROR(val uint32, shiftAmount uint) uint32 {
+	shiftAmount %= 32
 	tmp0 := (val) >> (shiftAmount)        // XX00YY -> 00XX00
 	tmp1 := (val) << (32 - (shiftAmount)) // XX00YY -> YY0000
 	return tmp0 | tmp1                    // YYXX00

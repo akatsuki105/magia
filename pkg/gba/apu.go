@@ -499,7 +499,6 @@ func (g *GBA) soundClock(cycles uint32) {
 	cnth := uint16(g._getRAM(ram.SOUNDCNT_H)) // snd_pcm_vol
 	volADiv, volBDiv := int16((cnth>>2)&0b1), int16((cnth>>3)&0b1)
 	sampCh4, sampCh5 := (int16(fifoASamp)<<1)>>volADiv, (int16(fifoBSamp)<<1)>>volBDiv
-	// sampCh4, sampCh5 = 0, 0
 
 	// Left
 	if util.Bit(cnth, 9) {

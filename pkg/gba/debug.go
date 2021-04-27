@@ -108,7 +108,7 @@ func (g *GBA) printIRQExceptions() {
 	}
 }
 
-func printCPSRFlag(r Reg) string {
+func outputCPSRFlag(r Reg) string {
 	n, z, c, v, i, f, t := r.GetCPSRFlag(flagN), r.GetCPSRFlag(flagZ), r.GetCPSRFlag(flagC), r.GetCPSRFlag(flagV), r.GetCPSRFlag(flagI), r.GetCPSRFlag(flagF), r.GetCPSRFlag(flagT)
 	result := "["
 	if n {
@@ -152,7 +152,7 @@ func printCPSRFlag(r Reg) string {
 func printPSR(r Reg) {
 	str := ` CPSR: 0x%08x %s SPSR_fiq: 0x%08x SPSR_svc: 0x%08x SPSR_abt: 0x%08x SPSR_irq: 0x%08x SPSR_und: 0x%08x
 `
-	fmt.Printf(str, r.CPSR, printCPSRFlag(r), r.SPSRBank[0], r.SPSRBank[1], r.SPSRBank[2], r.SPSRBank[3], r.SPSRBank[4])
+	fmt.Printf(str, r.CPSR, outputCPSRFlag(r), r.SPSRBank[0], r.SPSRBank[1], r.SPSRBank[2], r.SPSRBank[3], r.SPSRBank[4])
 }
 
 func printR13Bank(r Reg) {
@@ -193,7 +193,7 @@ func (g *GBA) printSWI(nn byte) {
 		fmt.Printf("%s.Sqrt(0x%x) in 0x%08x\n", state, g.R[0], g.inst.loc)
 	case 0x0b:
 		// fmt.Printf("%s.CPUSet(0x%x, 0x%x, 0x%x) in 0x%08x\n", state, g.R[0], g.R[1], g.R[2], g.inst.loc)
-		fmt.Printf("%s.%s\n", state, g.printCPUSet())
+		fmt.Printf("%s.%s\n", state, g.outputCPUSet())
 	case 0x0c:
 		fmt.Printf("%s.CPUFastSet(0x%x, 0x%x, 0x%x) in 0x%08x\n", state, g.R[0], g.R[1], g.R[2], g.inst.loc)
 	case 0x0e:
@@ -205,7 +205,7 @@ func (g *GBA) printSWI(nn byte) {
 	}
 }
 
-func (g *GBA) printCPUSet() string {
+func (g *GBA) outputCPUSet() string {
 	size := g.R[2] & 0b1_1111_1111_1111_1111_1111
 	if util.Bit(g.R[2], 26) {
 		size *= 4

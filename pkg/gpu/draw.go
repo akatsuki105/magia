@@ -152,6 +152,7 @@ func (g *GPU) draw2() *image.RGBA {
 
 func (g *GPU) draw3() *image.RGBA {
 	result := image.NewRGBA(image.Rect(0, 0, 240, 160))
+	util.FillImage(result, g.bgColor())
 
 	frameBuffer := g.VRAM[:80*kb]
 	for y := 0; y < 160; y++ {
@@ -166,13 +167,14 @@ func (g *GPU) draw3() *image.RGBA {
 }
 
 func (g *GPU) draw4() *image.RGBA {
-	frame := (g.IO[DISPCNT] >> 4) & 0b1
+	frame1 := util.Bit(g.IO[DISPCNT], 4)
 	frameBuffer := g.VRAM[:0xa000]
-	if frame == 1 {
+	if frame1 {
 		frameBuffer = g.VRAM[0xa000:]
 	}
 
 	result := image.NewRGBA(image.Rect(0, 0, 240, 160))
+	util.FillImage(result, g.bgColor())
 	for y := 0; y < 160; y++ {
 		for x := 0; x < 240; x++ {
 			c := g.paletteColor(-1, int(frameBuffer[y*240+x]))

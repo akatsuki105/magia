@@ -54,6 +54,9 @@ func (r *RAM) Get(addr uint32) uint32 {
 	switch {
 	case BIOS(addr):
 		offset := BIOSOffset(addr)
+		if offset > 0x3FFF {
+			return 0
+		}
 		return util.LE32(r.BIOS[offset:])
 	case EWRAM(addr):
 		offset := EWRAMOffset(addr)
@@ -63,6 +66,9 @@ func (r *RAM) Get(addr uint32) uint32 {
 		return util.LE32(r.IWRAM[offset:])
 	case IO(addr):
 		offset := IOOffset(addr)
+		if offset > 0x3fe {
+			return 0
+		}
 		return util.LE32(r.IO[offset:])
 	case GamePak0(addr):
 		offset := GamePak0Offset(addr)
@@ -83,20 +89,24 @@ func (r *RAM) Get(addr uint32) uint32 {
 // Set8 sets byte into addr
 func (r *RAM) Set8(addr uint32, b byte) {
 	switch {
-	case BIOS(addr):
-		r.BIOS[BIOSOffset(addr)] = b
+	case BIOS(addr): // write only
+		return
 	case EWRAM(addr):
 		r.EWRAM[EWRAMOffset(addr)] = b
 	case IWRAM(addr):
 		r.IWRAM[IWRAMOffset(addr)] = b
 	case IO(addr):
-		r.IO[IOOffset(addr)] = b
+		offset := IOOffset(addr)
+		if offset > 0x3fe {
+			return
+		}
+		r.IO[offset] = b
 	case GamePak0(addr):
-		r.GamePak0[GamePak0Offset(addr)] = b
+		return
 	case GamePak1(addr):
-		r.GamePak1[GamePak1Offset(addr)] = b
+		return
 	case GamePak2(addr):
-		r.GamePak2[GamePak2Offset(addr)] = b
+		return
 	case SRAM(addr):
 		r.SRAM[SRAMOffset(addr)] = b
 	}

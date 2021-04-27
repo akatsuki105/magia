@@ -39,7 +39,19 @@ func VRAM(addr uint32) bool {
 	return 0x0600_0000 <= addr && addr < 0x0700_0000
 }
 func VRAMOffset(addr uint32) uint32 {
-	return addr - 0x0600_0000
+	offset := addr - 0x0600_0000
+	switch {
+	case offset < 0x18000:
+		return offset
+	case offset < 0x20000:
+		return offset - 0x8000
+	default:
+		offset = offset % 0x20000
+		if offset >= 0x18000 && offset < 0x20000 {
+			return offset - 0x8000
+		}
+		return offset
+	}
 }
 
 func OAM(addr uint32) bool {
@@ -71,8 +83,8 @@ func GamePak2Offset(addr uint32) uint32 {
 }
 
 func SRAM(addr uint32) bool {
-	return 0x0e00_0000 <= addr && addr < 0x0e01_0000
+	return 0x0e00_0000 <= addr && addr < 0xffff_ffff
 }
 func SRAMOffset(addr uint32) uint32 {
-	return addr - 0x0e00_0000
+	return (addr - 0x0e00_0000) % 0x10000
 }

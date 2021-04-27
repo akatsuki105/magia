@@ -357,14 +357,14 @@ func (g *GBA) armSTR(inst uint32) {
 }
 
 func (g *GBA) armALUOp2(inst uint32) uint32 {
-	if !util.Bit(inst, 25) {
+	if !util.Bit(inst, 25) { // op rd, rn
 		// register
 		is := (inst >> 7) & 0b11111
 		rm := inst & 0b1111
 
 		salt := uint32(0)
 		isRegister := util.Bit(inst, 4)
-		if isRegister {
+		if isRegister { //
 			g.timer(1)
 			is = g.R[(inst>>8)&0b1111] & 0b1111_1111
 			if rm == 15 {
@@ -386,10 +386,11 @@ func (g *GBA) armALUOp2(inst uint32) uint32 {
 		return g.R[rm] + salt
 	}
 
-	// immediate
+	// immediate(op rd, imm)
 	op2 := inst & 0b1111_1111
-	is := uint((inst>>8)&0b1111) * 2
-	op2 = util.ROR(op2, is)
+	is := uint32((inst>>8)&0b1111) * 2
+	carryVariable := util.Bit(inst, 20)
+	op2 = g.armROR(op2, is, carryVariable, false)
 	return op2
 }
 
