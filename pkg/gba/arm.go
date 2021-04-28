@@ -300,7 +300,9 @@ func (g *GBA) armLDR(inst uint32) {
 	if pre {
 		// Pre-indexing, write-back is optional
 		if writeBack := util.Bit(inst, 21); writeBack {
-			g.R[rn] = addr
+			if rn != rd { // if rn is equal to rd, don't write back
+				g.R[rn] = addr
+			}
 		}
 	} else {
 		// Post-indexing, write-back is ALWAYS enabled
@@ -309,7 +311,9 @@ func (g *GBA) armLDR(inst uint32) {
 		} else {
 			addr -= ofs
 		}
-		g.R[rn] = addr
+		if rn != rd { // if rn is equal to rd, don't write back
+			g.R[rn] = addr
+		}
 	}
 
 	if rd == 15 {
