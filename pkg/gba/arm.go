@@ -321,6 +321,10 @@ func (g *GBA) armLDR(inst uint32) {
 func (g *GBA) armSTR(inst uint32) {
 	pre, plus, byteUnit := util.Bit(inst, 24), util.Bit(inst, 23), util.Bit(inst, 22)
 	rn, rd := (inst>>16)&0b1111, (inst>>12)&0b1111
+	rdval := g.R[rd]
+	if rd == 15 { // https://github.com/jsmolka/gba-tests/blob/a6447c5404c8fc2898ddc51f438271f832083b7e/arm/single_transfer.asm#L94
+		rdval += 4
+	}
 	ofs := g.armRegShiftOffset(inst)
 
 	addr := g.R[rn]
@@ -332,9 +336,9 @@ func (g *GBA) armSTR(inst uint32) {
 		}
 	}
 	if byteUnit {
-		g.setRAM8(addr, byte(g.R[rd]), false)
+		g.setRAM8(addr, byte(rdval), false)
 	} else {
-		g.setRAM32(addr, g.R[rd], false)
+		g.setRAM32(addr, rdval, false)
 	}
 
 	// writeBack
