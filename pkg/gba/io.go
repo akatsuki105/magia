@@ -74,6 +74,7 @@ func (g *GBA) setRAM32(addr, value uint32, s bool) {
 }
 
 func (g *GBA) setRAM16(addr uint32, value uint16, s bool) {
+	addr = util.Align2(addr)
 	g.timer(g.waitBus(addr, 16, s))
 	g._setRAM(addr, uint32(value), 2)
 }
