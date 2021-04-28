@@ -50,9 +50,13 @@ func (g *GBA) getRAM32(addr uint32, s bool) uint32 {
 	return val
 }
 
-func (g *GBA) getRAM16(addr uint32, s bool) uint16 {
+func (g *GBA) getRAM16(addr uint32, s bool) uint32 {
 	g.timer(g.waitBus(addr, 16, s))
-	return uint16(g._getRAM(addr))
+	val := g._getRAM(util.Align2(addr))
+	if addr%2 == 1 {
+		return util.ROR(val, 8)
+	}
+	return val & 0x0000_ffff
 }
 
 func (g *GBA) getRAM8(addr uint32, s bool) byte {

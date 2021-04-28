@@ -108,7 +108,7 @@ func (g *GBA) dmaTransfer(t dmaTiming) {
 		for ch.count > 0 {
 			switch size {
 			case 16:
-				g.setRAM16(ch.dst, g.getRAM16(ch.src, true), true)
+				g.setRAM16(ch.dst, uint16(g.getRAM16(ch.src, true)), true)
 			case 32:
 				g.setRAM32(ch.dst, g.getRAM32(ch.src, true), true)
 			}
