@@ -35,8 +35,5 @@ func (g *GPU) inWindow1(x, y int) bool {
 }
 
 func (g *GPU) inObjWindow(x, y int) bool {
-	if x >= 240 || y >= 160 {
-		return false
-	}
-	return objWin[x][y]
+	return objWin[x%240][y%160]
 }
