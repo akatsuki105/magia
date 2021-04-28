@@ -856,18 +856,21 @@ func (g *GBA) armLDRH(inst uint32) {
 			addr -= ofs
 		}
 		if writeBack := util.Bit(inst, 21); writeBack {
-			g.R[rn] = addr
+			if rn != rd {
+				g.R[rn] = addr
+			}
 		}
 	}
 	g.R[rd] = uint32(g.getRAM16(addr, false))
-	if !pre {
-		// Post-indexing
+	if !pre { // Post-indexing, write-back is ALWAYS enabled
 		if plus := util.Bit(inst, 23); plus {
 			addr += ofs
 		} else {
 			addr -= ofs
 		}
-		g.R[rn] = addr // Post-indexing, write-back is ALWAYS enabled
+		if rn != rd {
+			g.R[rn] = addr
+		}
 	}
 	if rd == 15 {
 		g.pipelining()
@@ -930,18 +933,27 @@ func (g *GBA) armLDRSH(inst uint32) {
 			addr -= ofs
 		}
 		if writeBack := util.Bit(inst, 21); writeBack {
-			g.R[rn] = addr
+			if rn != rd {
+				g.R[rn] = addr
+			}
 		}
 	}
-	g.R[rd] = uint32(int16(g.getRAM16(addr, false)))
-	if !pre {
-		// Post-indexing
+
+	val := g.getRAM16(addr, false)
+	if addr%2 == 1 { // https://github.com/jsmolka/gba-tests/blob/a6447c5404c8fc2898ddc51f438271f832083b7e/arm/halfword_transfer.asm#L141
+		val = ((val & 0xff) << 24) | ((val & 0xff) << 16) | ((val & 0xff) << 8) | val
+	}
+	g.R[rd] = uint32(int16(val))
+
+	if !pre { // Post-indexing, write-back is ALWAYS enabled
 		if plus := util.Bit(inst, 23); plus {
 			addr += ofs
 		} else {
 			addr -= ofs
 		}
-		g.R[rn] = addr // Post-indexing, write-back is ALWAYS enabled
+		if rn != rd {
+			g.R[rn] = addr
+		}
 	}
 	if rd == 15 {
 		g.pipelining()
@@ -971,14 +983,13 @@ func (g *GBA) armSTRH(inst uint32) {
 		}
 	}
 	g.setRAM16(addr, uint16(g.R[rd]), false)
-	if !pre {
-		// Post-indexing
+	if !pre { // Post-indexing, write-back is ALWAYS enabled
 		if plus := util.Bit(inst, 23); plus {
 			addr += ofs
 		} else {
 			addr -= ofs
 		}
-		g.R[rn] = addr // Post-indexing, write-back is ALWAYS enabled
+		g.R[rn] = addr
 	}
 	g.timer(g.cycleS2N())
 }
