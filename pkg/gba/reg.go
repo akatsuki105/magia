@@ -38,7 +38,7 @@ type Reg struct {
 	R13Bank                              [6]uint32 // fiq, svc, abt, irq, und, usr
 	R14Bank                              [6]uint32 // fiq, svc, abt, irq, und, usr
 	CPSR                                 uint32
-	SPSRBank                             [5]uint32 // fiq, svc, abt, irq, und
+	SPSRBank                             [6]uint32 // fiq, svc, abt, irq, und, usr
 }
 
 func NewReg() *Reg {
@@ -151,6 +151,8 @@ func (r *Reg) setSPSR(value uint32) {
 		r.SPSRBank[2] = value
 	case UND:
 		r.SPSRBank[4] = value
+	case USR, SYS:
+		r.SPSRBank[5] = value
 	}
 }
 
