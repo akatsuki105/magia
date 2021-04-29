@@ -8,6 +8,7 @@ import (
 	"mettaur/pkg/joypad"
 	"mettaur/pkg/ram"
 	"mettaur/pkg/util"
+	"os"
 )
 
 const (
@@ -91,7 +92,7 @@ func (g *GBA) Exit(s string) {
 		g.PrintHistory()
 	}
 	g.apu.exit()
-	panic("")
+	os.Exit(0)
 }
 
 func (g *GBA) exec(cycles int) {
