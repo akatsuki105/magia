@@ -439,7 +439,9 @@ func (g *GBA) thumbStackMultiple(inst uint16) {
 		for i := 0; i < 8; i++ {
 			if util.Bit(rlist, i) {
 				g.R[i] = g.getRAM32(g.R[rb], n > 0) // LDMIA
-				g.R[rb] += 4
+				if i != int(rb) {
+					g.R[rb] += 4
+				}
 				n++
 			}
 		} // (n-1)S + N
