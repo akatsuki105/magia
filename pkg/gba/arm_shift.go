@@ -37,6 +37,9 @@ func (g *GBA) armASR(val uint32, is uint32, carryVariable bool, imm bool) uint32
 	if is == 0 && imm {
 		is = 32
 	}
+	if is > 32 {
+		is = 32
+	}
 	carry := val&(1<<(is-1)) > 0
 	if is > 0 && carryVariable {
 		g.SetCPSRFlag(flagC, carry)
