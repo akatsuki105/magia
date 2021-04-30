@@ -905,13 +905,15 @@ func (g *GBA) armLDRSB(inst uint32) {
 	}
 	g.R[rd] = uint32(int8(g.getRAM8(addr, false)))
 	if !pre {
-		// Post-indexing
+		// Post-indexing, write-back is ALWAYS enabled
 		if plus := util.Bit(inst, 23); plus {
 			addr += ofs
 		} else {
 			addr -= ofs
 		}
-		g.R[rn] = addr // Post-indexing, write-back is ALWAYS enabled
+		if rn != rd {
+			g.R[rn] = addr
+		}
 	}
 	if rd == 15 {
 		g.pipelining()
