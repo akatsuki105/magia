@@ -8,6 +8,8 @@ import (
 	"strings"
 )
 
+var lastBios uint32 = 0xE129F000
+
 func (g *GBA) _getRAM(addr uint32) uint32 {
 	switch {
 	case gpu.IsIO(addr):
@@ -38,7 +40,15 @@ func (g *GBA) _getRAM(addr uint32) uint32 {
 		offset := ram.OAMOffset(addr)
 		return util.LE32(g.GPU.OAM[offset:])
 	default:
-		return g.RAM.Get(addr)
+		value := g.RAM.Get(addr)
+		if ram.BIOS(addr) {
+			if ram.BIOS(g.R[15]) {
+				lastBios = value
+			} else {
+				value = lastBios
+			}
+		}
+		return value
 	}
 }
 func (g *GBA) getRAM32(addr uint32, s bool) uint32 {
