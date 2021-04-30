@@ -53,19 +53,17 @@ func (g *GBA) _getRAM(addr uint32) uint32 {
 }
 func (g *GBA) getRAM32(addr uint32, s bool) uint32 {
 	g.timer(g.waitBus(addr, 32, s))
-	val := g._getRAM(util.Align2(addr))
-	if addr%4 == 1 { // https://github.com/jsmolka/gba-tests/blob/a6447c5404c8fc2898ddc51f438271f832083b7e/thumb/memory.asm#L72
-		val = util.ROR(val, 8)
+	val := g._getRAM(addr & ^uint32(3))
+
+	if addr&3 > 0 { // https://github.com/jsmolka/gba-tests/blob/a6447c5404c8fc2898ddc51f438271f832083b7e/thumb/memory.asm#L72
+		val = util.ROR(val, 8*(uint(addr)&3))
 	}
 	return val
 }
 
 func (g *GBA) getRAM16(addr uint32, s bool) uint32 {
 	g.timer(g.waitBus(addr, 16, s))
-	val := g._getRAM(util.Align2(addr))
-	if addr%2 == 1 {
-		return util.ROR(val, 8)
-	}
+	val := g._getRAM(addr)
 	return val & 0x0000_ffff
 }
 
