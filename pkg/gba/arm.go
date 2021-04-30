@@ -156,7 +156,9 @@ func (g *GBA) _armLDM(inst uint32) {
 		for rs := 0; rs < 16; rs++ {
 			if util.Bit(inst, rs) {
 				g.R[rs] = g.getRAM32(g.R[rn], n > 0)
-				g.R[rn] += 4
+				if rs != int(rn) {
+					g.R[rn] += 4
+				}
 				n++
 			}
 		}
@@ -172,7 +174,9 @@ func (g *GBA) _armLDM(inst uint32) {
 		for rs := 15; rs >= 0; rs-- {
 			if util.Bit(inst, rs) {
 				g.R[rs] = g.getRAM32(g.R[rn], n > 0)
-				g.R[rn] -= 4
+				if rs != int(rn) {
+					g.R[rn] -= 4
+				}
 				n++
 			}
 		}
