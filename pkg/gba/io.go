@@ -94,7 +94,7 @@ func (g *GBA) _setRAM(addr uint32, val uint32, width int) {
 	switch {
 	case gpu.IsIO(addr):
 		for i := uint32(0); i < uint32(width); i++ {
-			g.GPU.IO[addr-0x0400_0000+i] = byte(val >> (8 * i))
+			g.GPU.SetIO(addr+i, byte(val>>(8*i)))
 		}
 	case g.in(addr, ram.SOUND1CNT_L, ram.SOUNDCNT_L+1): // sound io
 		if util.Bit(byte(g._getRAM(ram.SOUNDCNT_X)), 7) {
