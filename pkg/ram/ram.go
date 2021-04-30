@@ -12,7 +12,7 @@ const (
 	gb
 )
 
-//go:embed bios_usa.gba
+//go:embed bios.gba
 var sBIOS []byte
 
 // RAM struct
