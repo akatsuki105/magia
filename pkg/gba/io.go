@@ -190,14 +190,23 @@ func (g *GBA) _setRAM(addr uint32, val uint32, width int) {
 	case addr == ram.HALTCNT:
 		g.halt = true
 	case ram.Palette(addr):
+		if width == 1 {
+			return
+		}
 		for i := uint32(0); i < uint32(width); i++ {
 			g.GPU.Palette[ram.PaletteOffset(addr+i)] = byte(val >> (8 * i))
 		}
 	case ram.VRAM(addr):
+		if width == 1 {
+			return
+		}
 		for i := uint32(0); i < uint32(width); i++ {
 			g.GPU.VRAM[ram.VRAMOffset(addr+i)] = byte(val >> (8 * i))
 		}
 	case ram.OAM(addr):
+		if width == 1 {
+			return
+		}
 		for i := uint32(0); i < uint32(width); i++ {
 			g.GPU.OAM[ram.OAMOffset(addr+i)] = byte(val >> (8 * i))
 		}
