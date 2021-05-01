@@ -20,7 +20,7 @@ type DMA struct {
 }
 
 func NewDMA() [4]*DMA {
-	return [4]*DMA{&DMA{defaultCount: 0x4000}, &DMA{defaultCount: 0x4000}, &DMA{defaultCount: 0x4000}, &DMA{defaultCount: 0x10000}}
+	return [4]*DMA{{defaultCount: 0x4000}, {defaultCount: 0x4000}, {defaultCount: 0x4000}, {defaultCount: 0x10000}}
 }
 func (ch *DMA) cnt() uint32 { return util.LE32(ch.io[8:]) }
 func (ch *DMA) setCnt(v uint32) {
@@ -108,7 +108,7 @@ func (g *GBA) dmaTransfer(t dmaTiming) {
 		for ch.count > 0 {
 			switch size {
 			case 16:
-				g.setRAM16(ch.dst, g.getRAM16(ch.src, true), true)
+				g.setRAM16(ch.dst, uint16(g.getRAM16(ch.src, true)), true)
 			case 32:
 				g.setRAM32(ch.dst, g.getRAM32(ch.src, true), true)
 			}

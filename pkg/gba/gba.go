@@ -8,6 +8,7 @@ import (
 	"mettaur/pkg/joypad"
 	"mettaur/pkg/ram"
 	"mettaur/pkg/util"
+	"os"
 )
 
 const (
@@ -91,7 +92,7 @@ func (g *GBA) Exit(s string) {
 		g.PrintHistory()
 	}
 	g.apu.exit()
-	panic("")
+	os.Exit(0)
 }
 
 func (g *GBA) exec(cycles int) {
@@ -116,6 +117,15 @@ func (g *GBA) step() {
 	g.pipe.inst[0] = g.pipe.inst[1]
 
 	if debug {
+		// Because sprintf crashes emulator in suite.gba, skip this.
+		if g.inst.loc == 0x08001efa {
+			fmt.Printf("%d/%d\n", g.R[2], g.R[3])
+			g.pipe.inst[0] = Inst{
+				inst: uint32(g.getRAM16(0x08001efe, true)),
+				loc:  0x08001efe,
+			}
+		}
+
 		g.pushHistory()
 		for _, bk := range breakPoint {
 			if g.inst.loc == bk {

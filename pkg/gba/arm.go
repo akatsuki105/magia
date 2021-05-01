@@ -83,12 +83,7 @@ func (g *GBA) armSWI(inst uint32) {
 func (g *GBA) armB(inst uint32) {
 	nn := int32(inst)
 	nn = (nn << 8) >> 6
-
-	if nn >= 0 {
-		g.R[15] = g.inst.loc + 8 + uint32(nn)
-	} else {
-		g.R[15] = g.inst.loc + 8 - uint32(-nn)
-	}
+	g.R[15] = util.AddInt32(g.inst.loc+8, nn)
 	g.pipelining()
 }
 
@@ -96,11 +91,7 @@ func (g *GBA) armBL(inst uint32) {
 	nn := int32(inst)
 	nn = (nn << 8) >> 6
 	g.R[14] = g.inst.loc + 4
-	if nn >= 0 {
-		g.R[15] = g.inst.loc + 8 + uint32(nn)
-	} else {
-		g.R[15] = g.inst.loc + 8 - uint32(-nn)
-	}
+	g.R[15] = util.AddInt32(g.inst.loc+8, nn)
 	g.pipelining()
 }
 
@@ -156,7 +147,9 @@ func (g *GBA) _armLDM(inst uint32) {
 		for rs := 0; rs < 16; rs++ {
 			if util.Bit(inst, rs) {
 				g.R[rs] = g.getRAM32(g.R[rn], n > 0)
-				g.R[rn] += 4
+				if rs != int(rn) {
+					g.R[rn] += 4
+				}
 				n++
 			}
 		}
@@ -172,7 +165,9 @@ func (g *GBA) _armLDM(inst uint32) {
 		for rs := 15; rs >= 0; rs-- {
 			if util.Bit(inst, rs) {
 				g.R[rs] = g.getRAM32(g.R[rn], n > 0)
-				g.R[rn] -= 4
+				if rs != int(rn) {
+					g.R[rn] -= 4
+				}
 				n++
 			}
 		}
@@ -259,9 +254,8 @@ func (g *GBA) armRegShiftOffset(inst uint32) uint32 {
 	ofs := uint32(0)
 	if util.Bit(inst, 25) {
 		is := inst >> 7 & 0b11111 // I = 1 shift reg
-		shiftType := inst >> 5 & 0b11
 		rm := inst & 0b1111
-		switch shiftType {
+		switch shiftType := inst >> 5 & 0b11; shiftType {
 		case lsl:
 			ofs = g.armLSL(g.R[rm], is, false, true)
 		case lsr:
@@ -300,7 +294,9 @@ func (g *GBA) armLDR(inst uint32) {
 	if pre {
 		// Pre-indexing, write-back is optional
 		if writeBack := util.Bit(inst, 21); writeBack {
-			g.R[rn] = addr
+			if rn != rd { // if rn is equal to rd, don't write back
+				g.R[rn] = addr
+			}
 		}
 	} else {
 		// Post-indexing, write-back is ALWAYS enabled
@@ -309,7 +305,9 @@ func (g *GBA) armLDR(inst uint32) {
 		} else {
 			addr -= ofs
 		}
-		g.R[rn] = addr
+		if rn != rd { // if rn is equal to rd, don't write back
+			g.R[rn] = addr
+		}
 	}
 
 	if rd == 15 {
@@ -321,6 +319,10 @@ func (g *GBA) armLDR(inst uint32) {
 func (g *GBA) armSTR(inst uint32) {
 	pre, plus, byteUnit := util.Bit(inst, 24), util.Bit(inst, 23), util.Bit(inst, 22)
 	rn, rd := (inst>>16)&0b1111, (inst>>12)&0b1111
+	rdval := g.R[rd]
+	if rd == 15 { // https://github.com/jsmolka/gba-tests/blob/a6447c5404c8fc2898ddc51f438271f832083b7e/arm/single_transfer.asm#L94
+		rdval += 4
+	}
 	ofs := g.armRegShiftOffset(inst)
 
 	addr := g.R[rn]
@@ -332,9 +334,9 @@ func (g *GBA) armSTR(inst uint32) {
 		}
 	}
 	if byteUnit {
-		g.setRAM8(addr, byte(g.R[rd]), false)
+		g.setRAM8(addr, byte(rdval), false)
 	} else {
-		g.setRAM32(addr, g.R[rd], false)
+		g.setRAM32(addr, rdval, false)
 	}
 
 	// writeBack
@@ -364,7 +366,7 @@ func (g *GBA) armALUOp2(inst uint32) uint32 {
 
 		salt := uint32(0)
 		isRegister := util.Bit(inst, 4)
-		if isRegister { //
+		if isRegister {
 			g.timer(1)
 			is = g.R[(inst>>8)&0b1111] & 0b1111_1111
 			if rm == 15 {
@@ -372,16 +374,16 @@ func (g *GBA) armALUOp2(inst uint32) uint32 {
 			}
 		}
 
-		carryVariable := util.Bit(inst, 20)
+		carryMut := util.Bit(inst, 20)
 		switch shiftType := (inst >> 5) & 0b11; shiftType {
 		case lsl:
-			return g.armLSL(g.R[rm]+salt, is, carryVariable, !isRegister)
+			return g.armLSL(g.R[rm]+salt, is, carryMut, !isRegister)
 		case lsr:
-			return g.armLSR(g.R[rm]+salt, is, carryVariable, !isRegister)
+			return g.armLSR(g.R[rm]+salt, is, carryMut, !isRegister)
 		case asr:
-			return g.armASR(g.R[rm]+salt, is, carryVariable, !isRegister)
+			return g.armASR(g.R[rm]+salt, is, carryMut, !isRegister)
 		case ror:
-			return g.armROR(g.R[rm]+salt, is, carryVariable, !isRegister)
+			return g.armROR(g.R[rm]+salt, is, carryMut, !isRegister)
 		}
 		return g.R[rm] + salt
 	}
@@ -389,8 +391,8 @@ func (g *GBA) armALUOp2(inst uint32) uint32 {
 	// immediate(op rd, imm)
 	op2 := inst & 0b1111_1111
 	is := uint32((inst>>8)&0b1111) * 2
-	carryVariable := util.Bit(inst, 20)
-	op2 = g.armROR(op2, is, carryVariable, false)
+	carryMut := util.Bit(inst, 20)
+	op2 = g.armROR(op2, is, carryMut, false)
 	return op2
 }
 
@@ -540,11 +542,11 @@ func (g *GBA) armADD(inst uint32) {
 }
 
 func (g *GBA) armADC(inst uint32) {
-	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
 	carry := uint32(0)
 	if g.GetCPSRFlag(flagC) {
 		carry = 1
 	}
+	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
 	g.R[rd] = rnval + op2 + carry
 
 	s := util.Bit(inst, 20)
@@ -563,11 +565,11 @@ func (g *GBA) armADC(inst uint32) {
 }
 
 func (g *GBA) armSBC(inst uint32) {
-	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
 	carry := uint32(0)
 	if g.GetCPSRFlag(flagC) {
 		carry = 1
 	}
+	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
 	g.R[rd] = rnval - op2 + carry - 1
 
 	s := util.Bit(inst, 20)
@@ -586,11 +588,11 @@ func (g *GBA) armSBC(inst uint32) {
 }
 
 func (g *GBA) armRSC(inst uint32) {
-	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
 	carry := uint32(0)
 	if g.GetCPSRFlag(flagC) {
 		carry = 1
 	}
+	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
 	g.R[rd] = op2 - rnval + carry - 1
 
 	s := util.Bit(inst, 20)
@@ -794,7 +796,7 @@ func (g *GBA) armUMULL(inst uint32) {
 // RdHiLo=Rm*Rs+RdHiLo
 func (g *GBA) armUMLAL(inst uint32) {
 	rdHi, rdLo, rs, rm := inst>>16&0b1111, inst>>12&0b1111, inst>>8&0b1111, inst&0b1111
-	result := uint64(g.R[rs])*uint64(g.R[rm]) + uint64(g.R[rdHi])<<32 | uint64(g.R[rdLo])
+	result := uint64(g.R[rs])*uint64(g.R[rm]) + (uint64(g.R[rdHi])<<32 | uint64(g.R[rdLo]))
 	g.R[rdHi], g.R[rdLo] = uint32(result>>32), uint32(result)
 	if s := util.Bit(inst, 20); s {
 		g.SetCPSRFlag(flagZ, uint32(result) == 0)
@@ -820,7 +822,7 @@ func (g *GBA) armSMULL(inst uint32) {
 // RdHiLo=Rm*Rs+RdHiLo
 func (g *GBA) armSMLAL(inst uint32) {
 	rdHi, rdLo, rs, rm := inst>>16&0b1111, inst>>12&0b1111, inst>>8&0b1111, inst&0b1111
-	result := int64(int32(g.R[rs]))*int64(int32(g.R[rm])) + int64(g.R[rdHi])<<32 | int64(g.R[rdLo])
+	result := int64(int32(g.R[rs]))*int64(int32(g.R[rm])) + (int64(g.R[rdHi])<<32 | int64(g.R[rdLo]))
 	g.R[rdHi], g.R[rdLo] = uint32(result>>32), uint32(result)
 	if s := util.Bit(inst, 20); s {
 		g.SetCPSRFlag(flagZ, uint32(result) == 0)
@@ -848,18 +850,21 @@ func (g *GBA) armLDRH(inst uint32) {
 			addr -= ofs
 		}
 		if writeBack := util.Bit(inst, 21); writeBack {
-			g.R[rn] = addr
+			if rn != rd {
+				g.R[rn] = addr
+			}
 		}
 	}
 	g.R[rd] = uint32(g.getRAM16(addr, false))
-	if !pre {
-		// Post-indexing
+	if !pre { // Post-indexing, write-back is ALWAYS enabled
 		if plus := util.Bit(inst, 23); plus {
 			addr += ofs
 		} else {
 			addr -= ofs
 		}
-		g.R[rn] = addr // Post-indexing, write-back is ALWAYS enabled
+		if rn != rd {
+			g.R[rn] = addr
+		}
 	}
 	if rd == 15 {
 		g.pipelining()
@@ -890,13 +895,15 @@ func (g *GBA) armLDRSB(inst uint32) {
 	}
 	g.R[rd] = uint32(int8(g.getRAM8(addr, false)))
 	if !pre {
-		// Post-indexing
+		// Post-indexing, write-back is ALWAYS enabled
 		if plus := util.Bit(inst, 23); plus {
 			addr += ofs
 		} else {
 			addr -= ofs
 		}
-		g.R[rn] = addr // Post-indexing, write-back is ALWAYS enabled
+		if rn != rd {
+			g.R[rn] = addr
+		}
 	}
 	if rd == 15 {
 		g.pipelining()
@@ -922,18 +929,27 @@ func (g *GBA) armLDRSH(inst uint32) {
 			addr -= ofs
 		}
 		if writeBack := util.Bit(inst, 21); writeBack {
-			g.R[rn] = addr
+			if rn != rd {
+				g.R[rn] = addr
+			}
 		}
 	}
-	g.R[rd] = uint32(int16(g.getRAM16(addr, false)))
-	if !pre {
-		// Post-indexing
+
+	val := g.getRAM16(addr, false)
+	if addr%2 == 1 { // https://github.com/jsmolka/gba-tests/blob/a6447c5404c8fc2898ddc51f438271f832083b7e/arm/halfword_transfer.asm#L141
+		val = ((val & 0xff) << 24) | ((val & 0xff) << 16) | ((val & 0xff) << 8) | val
+	}
+	g.R[rd] = uint32(int16(val))
+
+	if !pre { // Post-indexing, write-back is ALWAYS enabled
 		if plus := util.Bit(inst, 23); plus {
 			addr += ofs
 		} else {
 			addr -= ofs
 		}
-		g.R[rn] = addr // Post-indexing, write-back is ALWAYS enabled
+		if rn != rd {
+			g.R[rn] = addr
+		}
 	}
 	if rd == 15 {
 		g.pipelining()
@@ -963,14 +979,13 @@ func (g *GBA) armSTRH(inst uint32) {
 		}
 	}
 	g.setRAM16(addr, uint16(g.R[rd]), false)
-	if !pre {
-		// Post-indexing
+	if !pre { // Post-indexing, write-back is ALWAYS enabled
 		if plus := util.Bit(inst, 23); plus {
 			addr += ofs
 		} else {
 			addr -= ofs
 		}
-		g.R[rn] = addr // Post-indexing, write-back is ALWAYS enabled
+		g.R[rn] = addr
 	}
 	g.timer(g.cycleS2N())
 }

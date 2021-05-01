@@ -8,6 +8,8 @@ import (
 	"strings"
 )
 
+var lastBios uint32 = 0xE129F000
+
 func (g *GBA) _getRAM(addr uint32) uint32 {
 	switch {
 	case gpu.IsIO(addr):
@@ -38,17 +40,31 @@ func (g *GBA) _getRAM(addr uint32) uint32 {
 		offset := ram.OAMOffset(addr)
 		return util.LE32(g.GPU.OAM[offset:])
 	default:
-		return g.RAM.Get(addr)
+		value := g.RAM.Get(addr)
+		if ram.BIOS(addr) {
+			if ram.BIOS(g.R[15]) {
+				lastBios = value
+			} else {
+				value = lastBios
+			}
+		}
+		return value
 	}
 }
 func (g *GBA) getRAM32(addr uint32, s bool) uint32 {
 	g.timer(g.waitBus(addr, 32, s))
-	return g._getRAM(addr)
+	val := g._getRAM(addr & ^uint32(3))
+
+	if addr&3 > 0 { // https://github.com/jsmolka/gba-tests/blob/a6447c5404c8fc2898ddc51f438271f832083b7e/thumb/memory.asm#L72
+		val = util.ROR(val, 8*(uint(addr)&3))
+	}
+	return val
 }
 
-func (g *GBA) getRAM16(addr uint32, s bool) uint16 {
+func (g *GBA) getRAM16(addr uint32, s bool) uint32 {
 	g.timer(g.waitBus(addr, 16, s))
-	return uint16(g._getRAM(addr))
+	val := g._getRAM(addr)
+	return val & 0x0000_ffff
 }
 
 func (g *GBA) getRAM8(addr uint32, s bool) byte {
@@ -57,11 +73,13 @@ func (g *GBA) getRAM8(addr uint32, s bool) byte {
 }
 
 func (g *GBA) setRAM32(addr, value uint32, s bool) {
+	addr = util.Align4(addr)
 	g.timer(g.waitBus(addr, 32, s))
 	g._setRAM(addr, value, 4)
 }
 
 func (g *GBA) setRAM16(addr uint32, value uint16, s bool) {
+	addr = util.Align2(addr)
 	g.timer(g.waitBus(addr, 16, s))
 	g._setRAM(addr, uint32(value), 2)
 }
@@ -84,7 +102,7 @@ func (g *GBA) _setRAM(addr uint32, val uint32, width int) {
 	switch {
 	case gpu.IsIO(addr):
 		for i := uint32(0); i < uint32(width); i++ {
-			g.GPU.IO[addr-0x0400_0000+i] = byte(val >> (8 * i))
+			g.GPU.SetIO(addr+i, byte(val>>(8*i)))
 		}
 	case g.in(addr, ram.SOUND1CNT_L, ram.SOUNDCNT_L+1): // sound io
 		if util.Bit(byte(g._getRAM(ram.SOUNDCNT_X)), 7) {
@@ -170,14 +188,23 @@ func (g *GBA) _setRAM(addr uint32, val uint32, width int) {
 	case addr == ram.HALTCNT:
 		g.halt = true
 	case ram.Palette(addr):
+		if width == 1 {
+			return
+		}
 		for i := uint32(0); i < uint32(width); i++ {
 			g.GPU.Palette[ram.PaletteOffset(addr+i)] = byte(val >> (8 * i))
 		}
 	case ram.VRAM(addr):
+		if width == 1 {
+			return
+		}
 		for i := uint32(0); i < uint32(width); i++ {
 			g.GPU.VRAM[ram.VRAMOffset(addr+i)] = byte(val >> (8 * i))
 		}
 	case ram.OAM(addr):
+		if width == 1 {
+			return
+		}
 		for i := uint32(0); i < uint32(width); i++ {
 			g.GPU.OAM[ram.OAMOffset(addr+i)] = byte(val >> (8 * i))
 		}

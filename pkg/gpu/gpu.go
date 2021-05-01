@@ -59,6 +59,18 @@ func IsIO(addr uint32) bool {
 	return (addr >= 0x0400_0000) && (addr < 0x0400_0000+0x60)
 }
 
+func (g *GPU) SetIO(addr uint32, b byte) {
+	io := addr - 0x0400_0000
+	switch io {
+	case BG0CNT + 1, BG1CNT + 1:
+		b &= 0xdf
+	case BG0HOFS + 1, BG0VOFS + 1:
+		b &= 0x01
+	}
+
+	g.IO[io] = b
+}
+
 // VBlank returns true if in VBlank
 func (g *GPU) VBlank() bool {
 	return util.Bit(uint16(g.IO[DISPSTAT]), 0)

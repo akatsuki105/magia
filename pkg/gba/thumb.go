@@ -320,7 +320,12 @@ func (g *GBA) thumbLoadStoreSBH(inst uint16) {
 		g.R[rd] = uint32(g.getRAM16(g.R[rb]+g.R[ro], false))
 		g.timer(1)
 	case 3: // LDSH Rd,[Rb,Ro]
-		value := int32(g.getRAM16(g.R[rb]+g.R[ro], false))
+		addr := g.R[rb] + g.R[ro]
+		val := g.getRAM16(addr, false)
+		if addr%2 == 1 { // https://github.com/jsmolka/gba-tests/blob/a6447c5404c8fc2898ddc51f438271f832083b7e/thumb/memory.asm#L207
+			val = ((val & 0xff) << 24) | ((val & 0xff) << 16) | ((val & 0xff) << 8) | val
+		}
+		value := int32(val)
 		value = (value << 16) >> 16
 		g.R[rd] = uint32(value)
 		g.timer(1)
@@ -434,7 +439,9 @@ func (g *GBA) thumbStackMultiple(inst uint16) {
 		for i := 0; i < 8; i++ {
 			if util.Bit(rlist, i) {
 				g.R[i] = g.getRAM32(g.R[rb], n > 0) // LDMIA
-				g.R[rb] += 4
+				if i != int(rb) {
+					g.R[rb] += 4
+				}
 				n++
 			}
 		} // (n-1)S + N

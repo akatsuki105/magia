@@ -34,4 +34,6 @@ func (g *GPU) inWindow1(x, y int) bool {
 	return condX && condY
 }
 
-func (g *GPU) inObjWindow(x, y int) bool { return objWin[x][y] }
+func (g *GPU) inObjWindow(x, y int) bool {
+	return objWin[x%240][y%160]
+}
