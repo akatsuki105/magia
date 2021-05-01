@@ -83,12 +83,7 @@ func (g *GBA) armSWI(inst uint32) {
 func (g *GBA) armB(inst uint32) {
 	nn := int32(inst)
 	nn = (nn << 8) >> 6
-
-	if nn >= 0 {
-		g.R[15] = g.inst.loc + 8 + uint32(nn)
-	} else {
-		g.R[15] = g.inst.loc + 8 - uint32(-nn)
-	}
+	g.R[15] = util.AddInt32(g.inst.loc+8, nn)
 	g.pipelining()
 }
 
@@ -96,11 +91,7 @@ func (g *GBA) armBL(inst uint32) {
 	nn := int32(inst)
 	nn = (nn << 8) >> 6
 	g.R[14] = g.inst.loc + 4
-	if nn >= 0 {
-		g.R[15] = g.inst.loc + 8 + uint32(nn)
-	} else {
-		g.R[15] = g.inst.loc + 8 - uint32(-nn)
-	}
+	g.R[15] = util.AddInt32(g.inst.loc+8, nn)
 	g.pipelining()
 }
 
@@ -263,9 +254,8 @@ func (g *GBA) armRegShiftOffset(inst uint32) uint32 {
 	ofs := uint32(0)
 	if util.Bit(inst, 25) {
 		is := inst >> 7 & 0b11111 // I = 1 shift reg
-		shiftType := inst >> 5 & 0b11
 		rm := inst & 0b1111
-		switch shiftType {
+		switch shiftType := inst >> 5 & 0b11; shiftType {
 		case lsl:
 			ofs = g.armLSL(g.R[rm], is, false, true)
 		case lsr:
@@ -376,7 +366,7 @@ func (g *GBA) armALUOp2(inst uint32) uint32 {
 
 		salt := uint32(0)
 		isRegister := util.Bit(inst, 4)
-		if isRegister { //
+		if isRegister {
 			g.timer(1)
 			is = g.R[(inst>>8)&0b1111] & 0b1111_1111
 			if rm == 15 {
@@ -384,16 +374,16 @@ func (g *GBA) armALUOp2(inst uint32) uint32 {
 			}
 		}
 
-		carryVariable := util.Bit(inst, 20)
+		carryMut := util.Bit(inst, 20)
 		switch shiftType := (inst >> 5) & 0b11; shiftType {
 		case lsl:
-			return g.armLSL(g.R[rm]+salt, is, carryVariable, !isRegister)
+			return g.armLSL(g.R[rm]+salt, is, carryMut, !isRegister)
 		case lsr:
-			return g.armLSR(g.R[rm]+salt, is, carryVariable, !isRegister)
+			return g.armLSR(g.R[rm]+salt, is, carryMut, !isRegister)
 		case asr:
-			return g.armASR(g.R[rm]+salt, is, carryVariable, !isRegister)
+			return g.armASR(g.R[rm]+salt, is, carryMut, !isRegister)
 		case ror:
-			return g.armROR(g.R[rm]+salt, is, carryVariable, !isRegister)
+			return g.armROR(g.R[rm]+salt, is, carryMut, !isRegister)
 		}
 		return g.R[rm] + salt
 	}
@@ -401,8 +391,8 @@ func (g *GBA) armALUOp2(inst uint32) uint32 {
 	// immediate(op rd, imm)
 	op2 := inst & 0b1111_1111
 	is := uint32((inst>>8)&0b1111) * 2
-	carryVariable := util.Bit(inst, 20)
-	op2 = g.armROR(op2, is, carryVariable, false)
+	carryMut := util.Bit(inst, 20)
+	op2 = g.armROR(op2, is, carryMut, false)
 	return op2
 }
 

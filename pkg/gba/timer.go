@@ -90,9 +90,7 @@ func (g *GBA) timer(c int) {
 
 type Timers [4]*Timer
 
-func newTimers() Timers {
-	return Timers{&Timer{}, &Timer{}, &Timer{}, &Timer{}}
-}
+func newTimers() Timers { return Timers{&Timer{}, &Timer{}, &Timer{}, &Timer{}} }
 
 type Timer struct {
 	Count   uint16
@@ -115,9 +113,7 @@ func (t *Timer) overflow() bool {
 }
 
 // IsIO returns true if addr is for Timer IO register.
-func IsTimerIO(addr uint32) bool {
-	return (addr >= 0x0400_0100) && (addr < 0x0400_0110)
-}
+func IsTimerIO(addr uint32) bool { return (addr >= 0x0400_0100) && (addr < 0x0400_0110) }
 func (ts *Timers) GetIO(offset uint32) uint32 {
 	idx, ofs := offset/4, offset%4
 	switch ofs {

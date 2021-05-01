@@ -20,7 +20,7 @@ type DMA struct {
 }
 
 func NewDMA() [4]*DMA {
-	return [4]*DMA{&DMA{defaultCount: 0x4000}, &DMA{defaultCount: 0x4000}, &DMA{defaultCount: 0x4000}, &DMA{defaultCount: 0x10000}}
+	return [4]*DMA{{defaultCount: 0x4000}, {defaultCount: 0x4000}, {defaultCount: 0x4000}, {defaultCount: 0x10000}}
 }
 func (ch *DMA) cnt() uint32 { return util.LE32(ch.io[8:]) }
 func (ch *DMA) setCnt(v uint32) {
