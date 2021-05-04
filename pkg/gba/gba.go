@@ -71,7 +71,8 @@ type Inst struct {
 }
 
 // New GBA
-func New(src []byte) *GBA {
+func New(src []byte, isDebug bool) *GBA {
+	debug = isDebug
 	g := &GBA{
 		Reg:        *NewReg(),
 		GPU:        *gpu.New(),
