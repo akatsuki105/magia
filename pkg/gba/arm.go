@@ -786,7 +786,7 @@ func (g *GBA) armUMULL(inst uint32) {
 	result := uint64(g.R[rs]) * uint64(g.R[rm])
 	g.R[rdHi], g.R[rdLo] = uint32(result>>32), uint32(result)
 	if s := util.Bit(inst, 20); s {
-		g.SetCPSRFlag(flagZ, uint32(result) == 0)
+		g.SetCPSRFlag(flagZ, result == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rdHi], 31))
 	}
 
@@ -799,7 +799,7 @@ func (g *GBA) armUMLAL(inst uint32) {
 	result := uint64(g.R[rs])*uint64(g.R[rm]) + (uint64(g.R[rdHi])<<32 | uint64(g.R[rdLo]))
 	g.R[rdHi], g.R[rdLo] = uint32(result>>32), uint32(result)
 	if s := util.Bit(inst, 20); s {
-		g.SetCPSRFlag(flagZ, uint32(result) == 0)
+		g.SetCPSRFlag(flagZ, result == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rdHi], 31))
 	}
 
@@ -812,7 +812,7 @@ func (g *GBA) armSMULL(inst uint32) {
 	result := int64(int32(g.R[rs])) * int64(int32(g.R[rm]))
 	g.R[rdHi], g.R[rdLo] = uint32(result>>32), uint32(result)
 	if s := util.Bit(inst, 20); s {
-		g.SetCPSRFlag(flagZ, uint32(result) == 0)
+		g.SetCPSRFlag(flagZ, result == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rdHi], 31))
 	}
 
@@ -825,7 +825,7 @@ func (g *GBA) armSMLAL(inst uint32) {
 	result := int64(int32(g.R[rs]))*int64(int32(g.R[rm])) + (int64(g.R[rdHi])<<32 | int64(g.R[rdLo]))
 	g.R[rdHi], g.R[rdLo] = uint32(result>>32), uint32(result)
 	if s := util.Bit(inst, 20); s {
-		g.SetCPSRFlag(flagZ, uint32(result) == 0)
+		g.SetCPSRFlag(flagZ, result == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rdHi], 31))
 	}
 
