@@ -87,8 +87,12 @@ func (r *Reg) setPrivMode(mode Mode) {
 	}
 
 	r.CPSR = (r.CPSR & 0b1111_1111_1111_1111_1111_1111_1110_0000) | uint32(mode)
-	r.copyRegToBank(curr)
-	r.copyBankToReg(mode)
+	r._setPrivMode(curr, mode)
+}
+
+func (r *Reg) _setPrivMode(old, new Mode) {
+	r.copyRegToBank(old)
+	r.copyBankToReg(new)
 }
 
 // ref: arm_spsr_to_cpsr
@@ -96,8 +100,7 @@ func (r *Reg) restorePrivMode() {
 	currMode := r.getPrivMode()
 	r.CPSR = r.SPSRBank[bankIdx[currMode]]
 	prevMode := r.getPrivMode()
-	r.copyRegToBank(currMode)
-	r.copyBankToReg(prevMode)
+	r._setPrivMode(currMode, prevMode)
 }
 
 // save CPSR into SPSR

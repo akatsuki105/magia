@@ -1058,8 +1058,7 @@ func (g *GBA) armMSR(inst uint32) {
 		newMode := Mode(psr & 0b11111)
 		g.CPSR &= ^mask
 		g.CPSR |= psr
-		g.copyRegToBank(currMode)
-		g.copyBankToReg(newMode)
+		g.Reg._setPrivMode(currMode, newMode)
 		g.checkIRQ()
 	}
 }
