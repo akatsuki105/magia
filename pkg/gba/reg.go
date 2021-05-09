@@ -32,13 +32,13 @@ const (
 
 // Reg represents register
 type Reg struct {
-	R                                    [16]uint32
-	R8Fiq, R9Fiq, R10Fiq, R11Fiq, R12Fiq uint32
-	R8Usr, R9Usr, R10Usr, R11Usr, R12Usr uint32
-	R13Bank                              [6]uint32 // fiq, svc, abt, irq, und, usr
-	R14Bank                              [6]uint32 // fiq, svc, abt, irq, und, usr
-	CPSR                                 uint32
-	SPSRBank                             [6]uint32 // fiq, svc, abt, irq, und, usr
+	R        [16]uint32
+	RFiq     [5]uint32 // R8Fiq, R9Fiq, R10Fiq, R11Fiq, R12Fiq
+	RUsr     [5]uint32 // R8Usr, R9Usr, R10Usr, R11Usr, R12Usr
+	R13Bank  [6]uint32 // fiq, svc, abt, irq, und, usr
+	R14Bank  [6]uint32 // fiq, svc, abt, irq, und, usr
+	CPSR     uint32
+	SPSRBank [6]uint32 // fiq, svc, abt, irq, und, usr
 }
 
 func NewReg() *Reg {
@@ -111,37 +111,16 @@ func (r *Reg) restorePrivMode() {
 // ref: arm_regs_to_bank
 func (r *Reg) copyRegToBank(mode Mode) {
 	if mode != FIQ {
-		r.R8Usr = r.R[8]
-		r.R9Usr = r.R[9]
-		r.R10Usr = r.R[10]
-		r.R11Usr = r.R[11]
-		r.R12Usr = r.R[12]
+		for i := 0; i < 5; i++ {
+			r.RUsr[i] = r.R[8+i]
+		}
 	}
-
-	switch mode {
-	case USR, SYS:
-		r.R13Bank[5] = r.R[13]
-		r.R14Bank[5] = r.R[14]
-	case FIQ:
-		r.R8Fiq = r.R[8]
-		r.R9Fiq = r.R[9]
-		r.R10Fiq = r.R[10]
-		r.R11Fiq = r.R[11]
-		r.R12Fiq = r.R[12]
-		r.R13Bank[0] = r.R[13]
-		r.R14Bank[0] = r.R[14]
-	case IRQ:
-		r.R13Bank[3] = r.R[13]
-		r.R14Bank[3] = r.R[14]
-	case SWI:
-		r.R13Bank[1] = r.R[13]
-		r.R14Bank[1] = r.R[14]
-	case ABT:
-		r.R13Bank[2] = r.R[13]
-		r.R14Bank[2] = r.R[14]
-	case UND:
-		r.R13Bank[4] = r.R[13]
-		r.R14Bank[4] = r.R[14]
+	r.R13Bank[bankIdx[mode]] = r.R[13]
+	r.R14Bank[bankIdx[mode]] = r.R[14]
+	if mode == FIQ {
+		for i := 0; i < 5; i++ {
+			r.RFiq[i] = r.R[8+i]
+		}
 	}
 }
 
@@ -154,37 +133,16 @@ func (r *Reg) setSPSR(value uint32) {
 // ref: arm_bank_to_regs
 func (r *Reg) copyBankToReg(mode Mode) {
 	if mode != FIQ {
-		r.R[8] = r.R8Usr
-		r.R[9] = r.R9Usr
-		r.R[10] = r.R10Usr
-		r.R[11] = r.R11Usr
-		r.R[12] = r.R12Usr
+		for i := 0; i < 5; i++ {
+			r.R[8+i] = r.RUsr[i]
+		}
 	}
-
-	switch mode {
-	case USR, SYS:
-		r.R[13] = r.R13Bank[5]
-		r.R[14] = r.R14Bank[5]
-	case FIQ:
-		r.R[8] = r.R8Fiq
-		r.R[9] = r.R9Fiq
-		r.R[10] = r.R10Fiq
-		r.R[11] = r.R11Fiq
-		r.R[12] = r.R12Fiq
-		r.R[13] = r.R13Bank[0]
-		r.R[14] = r.R14Bank[0]
-	case IRQ:
-		r.R[13] = r.R13Bank[3]
-		r.R[14] = r.R14Bank[3]
-	case SWI:
-		r.R[13] = r.R13Bank[1]
-		r.R[14] = r.R14Bank[1]
-	case ABT:
-		r.R[13] = r.R13Bank[2]
-		r.R[14] = r.R14Bank[2]
-	case UND:
-		r.R[13] = r.R13Bank[4]
-		r.R[14] = r.R14Bank[4]
+	r.R[13] = r.R13Bank[bankIdx[mode]]
+	r.R[14] = r.R14Bank[bankIdx[mode]]
+	if mode == FIQ {
+		for i := 0; i < 5; i++ {
+			r.R[8+i] = r.RFiq[i]
+		}
 	}
 }
 
