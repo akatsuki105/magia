@@ -91,6 +91,10 @@ func (r *Reg) setPrivMode(mode Mode) {
 }
 
 func (r *Reg) _setPrivMode(old, new Mode) {
+	oldBank, newBank := bankIdx[old], bankIdx[new]
+	if oldBank == newBank {
+		return
+	}
 	r.copyRegToBank(old)
 	r.copyBankToReg(new)
 }
