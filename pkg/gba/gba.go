@@ -155,7 +155,7 @@ func (g *GBA) SoftReset() {
 
 func (g *GBA) exception(addr uint32, mode Mode) {
 	cpsr := g.CPSR
-	g.setOSMode(mode)
+	g.setPrivMode(mode)
 	g.setSPSR(cpsr)
 
 	g.R[14] = g.exceptionReturn(addr)

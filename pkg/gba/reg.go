@@ -73,28 +73,29 @@ func (r *Reg) GetCPSRFlag(idx int) bool {
 	return util.Bit(r.CPSR, idx)
 }
 
-// getOSMode get Processor mode
-func (r *Reg) getOSMode() Mode {
+// getPrivMode get Processor mode
+func (r *Reg) getPrivMode() Mode {
 	return Mode(r.CPSR & 0b11111)
-}
-func (r *Reg) isSysMode() bool {
-	return Mode(r.CPSR&0b11111) == SYS
 }
 
 // SetOSMode set Processor mode
 // ref: arm_mode_set
-func (r *Reg) setOSMode(mode Mode) {
-	curr := r.getOSMode()
+func (r *Reg) setPrivMode(mode Mode) {
+	curr := r.getPrivMode()
+	if mode == curr {
+		return
+	}
+
 	r.CPSR = (r.CPSR & 0b1111_1111_1111_1111_1111_1111_1110_0000) | uint32(mode)
 	r.copyRegToBank(curr)
 	r.copyBankToReg(mode)
 }
 
 // ref: arm_spsr_to_cpsr
-func (r *Reg) restoreOSMode() {
-	currMode := r.getOSMode()
+func (r *Reg) restorePrivMode() {
+	currMode := r.getPrivMode()
 	r.CPSR = r.SPSRBank[bankIdx[currMode]]
-	prevMode := r.getOSMode()
+	prevMode := r.getPrivMode()
 	r.copyRegToBank(currMode)
 	r.copyBankToReg(prevMode)
 }
@@ -139,7 +140,7 @@ func (r *Reg) copyRegToBank(mode Mode) {
 
 // ref: arm_spsr_set
 func (r *Reg) setSPSR(value uint32) {
-	mode := r.getOSMode()
+	mode := r.getPrivMode()
 	switch mode {
 	case FIQ:
 		r.SPSRBank[0] = value

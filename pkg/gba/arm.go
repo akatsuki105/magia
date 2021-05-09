@@ -118,14 +118,14 @@ func (g *GBA) armLDM(inst uint32) {
 func (g *GBA) _armLDMUsr(inst uint32) {
 	if util.Bit(inst, 15) {
 		g._armLDM(inst)
-		g.restoreOSMode()
+		g.restorePrivMode()
 		g.checkIRQ()
 		return
 	}
-	mode := g.getOSMode()
-	g.setOSMode(USR)
+	mode := g.getPrivMode()
+	g.setPrivMode(USR)
 	g._armLDM(inst)
-	g.setOSMode(mode)
+	g.setPrivMode(mode)
 }
 
 func (g *GBA) _armLDM(inst uint32) {
@@ -194,10 +194,10 @@ func (g *GBA) armSTM(inst uint32) {
 }
 
 func (g *GBA) _armSTMUsr(inst uint32) {
-	mode := g.getOSMode()
-	g.setOSMode(USR)
+	mode := g.getPrivMode()
+	g.setPrivMode(USR)
 	g._armSTM(inst)
-	g.setOSMode(mode)
+	g.setPrivMode(mode)
 }
 
 func (g *GBA) _armSTM(inst uint32) {
@@ -445,7 +445,7 @@ func (g *GBA) armALU(inst uint32) {
 }
 
 func (g *GBA) armALUChangeOSMode() {
-	g.restoreOSMode()
+	g.restorePrivMode()
 	g.pipelining()
 	g.checkIRQ()
 }
@@ -1000,13 +1000,13 @@ const (
 func (g *GBA) armMRS(inst uint32) {
 	rd := (inst >> 12) & 0b1111
 	if useSpsr := util.Bit(inst, 22); useSpsr {
-		mode := g.getOSMode()
+		mode := g.getPrivMode()
 		g.R[rd] = g.SPSRBank[bankIdx[mode]]
 		return
 	}
 
 	mask := PRIV_MASK
-	if g.getOSMode() == USR {
+	if g.getPrivMode() == USR {
 		mask = USR_MASK
 	}
 	g.R[rd] = g.CPSR & mask
@@ -1028,7 +1028,7 @@ func (g *GBA) armMSR(inst uint32) {
 	}
 
 	secMask := PRIV_MASK
-	if g.getOSMode() == USR {
+	if g.getPrivMode() == USR {
 		secMask = USR_MASK
 	}
 
@@ -1051,10 +1051,10 @@ func (g *GBA) armMSR(inst uint32) {
 	psr &= mask
 
 	if r {
-		spsr := g.SPSRBank[bankIdx[g.getOSMode()]]
+		spsr := g.SPSRBank[bankIdx[g.getPrivMode()]]
 		g.setSPSR((spsr & ^mask) | psr)
 	} else {
-		currMode := g.getOSMode()
+		currMode := g.getPrivMode()
 		newMode := Mode(psr & 0b11111)
 		g.CPSR &= ^mask
 		g.CPSR |= psr
