@@ -71,7 +71,8 @@ type Inst struct {
 }
 
 // New GBA
-func New(src []byte) *GBA {
+func New(src []byte, isDebug bool) *GBA {
+	debug = isDebug
 	g := &GBA{
 		Reg:        *NewReg(),
 		GPU:        *gpu.New(),
@@ -154,7 +155,7 @@ func (g *GBA) SoftReset() {
 
 func (g *GBA) exception(addr uint32, mode Mode) {
 	cpsr := g.CPSR
-	g.setOSMode(mode)
+	g.setPrivMode(mode)
 	g.setSPSR(cpsr)
 
 	g.R[14] = g.exceptionReturn(addr)

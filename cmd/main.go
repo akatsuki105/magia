@@ -55,6 +55,7 @@ func main() {
 func Run() ExitCode {
 	var (
 		showVersion   = flag.Bool("v", false, "show version")
+		debug         = flag.Bool("d", false, "exec in debug mode")
 		showBIOSIntro = flag.Bool("b", false, "show BIOS intro")
 		showCartInfo  = flag.Bool("c", false, "show cartridge info")
 	)
@@ -73,7 +74,7 @@ func Run() ExitCode {
 	}
 
 	emu := &Emulator{
-		gba: gba.New(data),
+		gba: gba.New(data, *debug),
 		rom: path,
 	}
 	if *showCartInfo {
