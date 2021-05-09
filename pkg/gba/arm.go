@@ -367,31 +367,33 @@ func (g *GBA) armALUOp2(inst uint32) uint32 {
 		}
 	}
 
-	// immediate(op rd, imm)
-	op2 := inst & 0b1111_1111
-	is := uint32((inst>>8)&0b1111) * 2
+	// When above Bit 25 I=1 =>  immediate(op rd, imm)
+	immediate := inst & 0b1111_1111
+	rotate := uint32((inst>>8)&0b1111) * 2
+	if rotate == 0 {
+		return immediate
+	}
 	carryMut := util.Bit(inst, 20)
-	op2 = g.armROR(op2, is, carryMut, false)
-	return op2
+	immediate = g.armROR(immediate, rotate, carryMut, false)
+	return immediate
 }
 
 //  When above Bit 25 I=0 (Register as 2nd Operand) && When below Bit 4 R=0 - Shift by Immediate
 func (g *GBA) armDataRegi(inst uint32) uint32 {
-	is := (inst >> 7) & 0b11111
+	immediate := (inst >> 7) & 0b11111
 	rm := inst & 0b1111
-	salt := uint32(0)
 	carryMut := util.Bit(inst, 20)
 	switch shiftType := (inst >> 5) & 0b11; shiftType {
 	case lsl:
-		return g.armLSL(g.R[rm], is, carryMut, true)
+		return g.armLSL(g.R[rm], immediate, carryMut, true)
 	case lsr:
-		return g.armLSR(g.R[rm], is, carryMut, true)
+		return g.armLSR(g.R[rm], immediate, carryMut, true)
 	case asr:
-		return g.armASR(g.R[rm], is, carryMut, true)
+		return g.armASR(g.R[rm], immediate, carryMut, true)
 	case ror:
-		return g.armROR(g.R[rm], is, carryMut, true)
+		return g.armROR(g.R[rm], immediate, carryMut, true)
 	}
-	return g.R[rm] + salt
+	return g.R[rm]
 }
 
 // When above Bit 25 I=0 (Register as 2nd Operand) && When below Bit 4 R=1 - Shift by Register
