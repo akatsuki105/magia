@@ -13,6 +13,8 @@ const (
 	ror
 )
 
+var shifterCarryOut = false
+
 func (g *GBA) armStep() {
 	pc := util.Align2(g.R[15])
 	g.pipe.inst[1] = Inst{
@@ -485,6 +487,7 @@ func (g *GBA) armAND(inst uint32) {
 			g.pipelining()
 		}
 	} else if s {
+		g.SetCPSRFlag(flagC, shifterCarryOut)
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
 	}
@@ -502,6 +505,7 @@ func (g *GBA) armEOR(inst uint32) {
 			g.pipelining()
 		}
 	} else if s {
+		g.SetCPSRFlag(flagC, shifterCarryOut)
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
 	}
@@ -637,6 +641,7 @@ func (g *GBA) armTST(inst uint32) {
 	rnval, op2 := g.armALURn(inst), g.armALUOp2(inst)
 	result := rnval & op2
 	if s := util.Bit(inst, 20); s {
+		g.SetCPSRFlag(flagC, shifterCarryOut)
 		g.SetCPSRFlag(flagZ, result == 0)
 		g.SetCPSRFlag(flagN, util.Bit(result, 31))
 	}
@@ -646,6 +651,7 @@ func (g *GBA) armTEQ(inst uint32) {
 	rnval, op2 := g.armALURn(inst), g.armALUOp2(inst)
 	result := rnval ^ op2
 	if s := util.Bit(inst, 20); s {
+		g.SetCPSRFlag(flagC, shifterCarryOut)
 		g.SetCPSRFlag(flagZ, result == 0)
 		g.SetCPSRFlag(flagN, util.Bit(result, 31))
 	}
@@ -685,6 +691,7 @@ func (g *GBA) armORR(inst uint32) {
 			g.pipelining()
 		}
 	} else if s {
+		g.SetCPSRFlag(flagC, shifterCarryOut)
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
 	}
@@ -702,6 +709,7 @@ func (g *GBA) armMOV(inst uint32) {
 			g.pipelining()
 		}
 	} else if s {
+		g.SetCPSRFlag(flagC, shifterCarryOut)
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
 	}
@@ -719,6 +727,7 @@ func (g *GBA) armBIC(inst uint32) {
 			g.pipelining()
 		}
 	} else if s {
+		g.SetCPSRFlag(flagC, shifterCarryOut)
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
 	}
@@ -736,6 +745,7 @@ func (g *GBA) armMVN(inst uint32) {
 			g.pipelining()
 		}
 	} else if s {
+		g.SetCPSRFlag(flagC, shifterCarryOut)
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
 	}
