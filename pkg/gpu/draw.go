@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"mettaur/pkg/util"
+	"magia/pkg/util"
 	"os"
 
 	"github.com/anthonynsimon/bild/blend"

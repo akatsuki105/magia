@@ -1,8 +1,8 @@
 package gba
 
 import (
-	"mettaur/pkg/ram"
-	"mettaur/pkg/util"
+	"magia/pkg/ram"
+	"magia/pkg/util"
 )
 
 const (

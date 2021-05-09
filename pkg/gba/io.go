@@ -2,9 +2,9 @@ package gba
 
 import (
 	"fmt"
-	"mettaur/pkg/gpu"
-	"mettaur/pkg/ram"
-	"mettaur/pkg/util"
+	"magia/pkg/gpu"
+	"magia/pkg/ram"
+	"magia/pkg/util"
 	"strings"
 )
 

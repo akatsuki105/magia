@@ -2,7 +2,7 @@ package ram
 
 import (
 	_ "embed"
-	"mettaur/pkg/util"
+	"magia/pkg/util"
 )
 
 const (

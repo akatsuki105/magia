@@ -1,7 +1,7 @@
 package joypad
 
 import (
-	"mettaur/pkg/util"
+	"magia/pkg/util"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )

@@ -3,7 +3,7 @@ package gpu
 import (
 	"image"
 	"image/color"
-	"mettaur/pkg/util"
+	"magia/pkg/util"
 )
 
 var objDim = [4][3][2]int{

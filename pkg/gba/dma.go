@@ -1,7 +1,7 @@
 package gba
 
 import (
-	"mettaur/pkg/util"
+	"magia/pkg/util"
 )
 
 type dmaTiming uint32

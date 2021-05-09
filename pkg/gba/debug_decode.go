@@ -2,7 +2,7 @@ package gba
 
 import (
 	"fmt"
-	"mettaur/pkg/util"
+	"magia/pkg/util"
 	"strings"
 )
 

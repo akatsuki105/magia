@@ -2,7 +2,7 @@ package gpu
 
 import (
 	"fmt"
-	"mettaur/pkg/util"
+	"magia/pkg/util"
 )
 
 func (g *GPU) PrintBGMap(bg int) {

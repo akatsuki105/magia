@@ -3,11 +3,11 @@ package gba
 import (
 	"fmt"
 	"image"
-	"mettaur/pkg/cart"
-	"mettaur/pkg/gpu"
-	"mettaur/pkg/joypad"
-	"mettaur/pkg/ram"
-	"mettaur/pkg/util"
+	"magia/pkg/cart"
+	"magia/pkg/gpu"
+	"magia/pkg/joypad"
+	"magia/pkg/ram"
+	"magia/pkg/util"
 	"os"
 )
 

@@ -2,7 +2,7 @@ package gba
 
 import (
 	"fmt"
-	"mettaur/pkg/ram"
+	"magia/pkg/ram"
 )
 
 func (g *GBA) printBGMap(bg int) {

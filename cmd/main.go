@@ -4,7 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"mettaur/pkg/gba"
+	"magia/pkg/gba"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -17,8 +17,8 @@ import (
 var version string
 
 const (
-	title   = "Mettaur"
-	exeName = "mettaur"
+	title   = "Magia"
+	exeName = "magia"
 )
 
 // ExitCode represents program's status code

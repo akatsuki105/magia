@@ -1,10 +1,10 @@
-# Mettaur
+# Magia
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/pokemium/mettaur)](https://goreportcard.com/report/github.com/pokemium/mettaur)
-[![GitHub stars](https://img.shields.io/github/stars/pokemium/mettaur)](https://github.com/pokemium/mettaur/stargazers)
-[![GitHub license](https://img.shields.io/github/license/pokemium/mettaur)](https://github.com/pokemium/mettaur/blob/main/LICENSE)
+[![Go Report Card](https://goreportcard.com/badge/github.com/pokemium/magia)](https://goreportcard.com/report/github.com/pokemium/magia)
+[![GitHub stars](https://img.shields.io/github/stars/pokemium/magia)](https://github.com/pokemium/magia/stargazers)
+[![GitHub license](https://img.shields.io/github/license/pokemium/magia)](https://github.com/pokemium/magia/blob/main/LICENSE)
 
-Mettaur is GBA emulator written in golang.
+Magia is GBA emulator written in golang.
 
 **Warning: This emulator is WIP, so many ROMs don't work correctly now.**
 
@@ -14,10 +14,10 @@ Mettaur is GBA emulator written in golang.
 
 ## Run
 
-Please download latest binary from [Release](https://github.com/pokemium/mettaur/releases).
+Please download latest binary from [Release](https://github.com/pokemium/magia/releases).
 
 ```sh
-$ mettaur XXXX.gba
+$ magia XXXX.gba
 ```
 
 ## Build
@@ -25,7 +25,7 @@ $ mettaur XXXX.gba
 ```sh
 # go1.16.x
 $ make build
-$ ./build/darwin-amd64/mettaur XXXX.gba
+$ ./build/darwin-amd64/magia XXXX.gba
 ```
 
 ## Key

@@ -1,9 +1,9 @@
 package gba
 
 import (
+	"magia/pkg/ram"
+	"magia/pkg/util"
 	"math"
-	"mettaur/pkg/ram"
-	"mettaur/pkg/util"
 	"time"
 
 	"github.com/hajimehoshi/oto"

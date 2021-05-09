@@ -1,4 +1,4 @@
-module mettaur
+module magia
 
 go 1.16
 

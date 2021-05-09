@@ -2,8 +2,8 @@ package gba
 
 import (
 	"fmt"
-	"mettaur/pkg/ram"
-	"mettaur/pkg/util"
+	"magia/pkg/ram"
+	"magia/pkg/util"
 	"os"
 	"runtime"
 )

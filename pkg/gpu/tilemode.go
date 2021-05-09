@@ -2,7 +2,7 @@ package gpu
 
 import (
 	"image"
-	"mettaur/pkg/util"
+	"magia/pkg/util"
 )
 
 func (g *GPU) drawTextBG(screen *image.RGBA, idx int) {

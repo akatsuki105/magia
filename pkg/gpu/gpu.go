@@ -1,7 +1,7 @@
 package gpu
 
 import (
-	"mettaur/pkg/util"
+	"magia/pkg/util"
 )
 
 // IO offset

@@ -1,7 +1,7 @@
 package gba
 
 import (
-	"mettaur/pkg/util"
+	"magia/pkg/util"
 )
 
 func (g *GBA) armLSL(val uint32, is uint32, carryMut bool, imm bool) uint32 {
