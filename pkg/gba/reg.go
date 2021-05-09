@@ -55,7 +55,7 @@ func (r *Reg) softReset() {
 	r.CPSR = cpsr
 }
 
-var bankIdx = map[Mode]int{FIQ: 0, IRQ: 3, SWI: 1, ABT: 2, UND: 4, USR: 5, SYS: 5}
+var bankIdx = map[Mode]int{FIQ: 1, IRQ: 2, SWI: 3, ABT: 4, UND: 5, USR: 0, SYS: 0}
 
 // SetCPSRFlag sets CPSR flag
 func (r *Reg) SetCPSRFlag(idx int, flag bool) {
@@ -148,20 +148,7 @@ func (r *Reg) copyRegToBank(mode Mode) {
 // ref: arm_spsr_set
 func (r *Reg) setSPSR(value uint32) {
 	mode := r.getPrivMode()
-	switch mode {
-	case FIQ:
-		r.SPSRBank[0] = value
-	case IRQ:
-		r.SPSRBank[3] = value
-	case SWI:
-		r.SPSRBank[1] = value
-	case ABT:
-		r.SPSRBank[2] = value
-	case UND:
-		r.SPSRBank[4] = value
-	case USR, SYS:
-		r.SPSRBank[5] = value
-	}
+	r.SPSRBank[bankIdx[mode]] = value
 }
 
 // ref: arm_bank_to_regs
