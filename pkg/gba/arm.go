@@ -13,8 +13,6 @@ const (
 	ror
 )
 
-var shifterCarryOut = false
-
 func (g *GBA) armStep() {
 	pc := util.Align2(g.R[15])
 	g.pipe.inst[1] = Inst{
@@ -362,63 +360,40 @@ func (g *GBA) armSTR(inst uint32) {
 
 func (g *GBA) armALUOp2(inst uint32) uint32 {
 	if !util.Bit(inst, 25) { // op rd, rn
-		if isRegister := util.Bit(inst, 4); isRegister {
-			return g.armDataRegr(inst)
-		} else {
-			return g.armDataRegi(inst)
+		// register
+		is := (inst >> 7) & 0b11111
+		rm := inst & 0b1111
+
+		salt := uint32(0)
+		isRegister := util.Bit(inst, 4)
+		if isRegister {
+			g.timer(1)
+			is = g.R[(inst>>8)&0b1111] & 0b1111_1111
+			if rm == 15 {
+				salt = 4
+			}
 		}
+
+		carryMut := util.Bit(inst, 20)
+		switch shiftType := (inst >> 5) & 0b11; shiftType {
+		case lsl:
+			return g.armLSL(g.R[rm]+salt, is, carryMut, !isRegister)
+		case lsr:
+			return g.armLSR(g.R[rm]+salt, is, carryMut, !isRegister)
+		case asr:
+			return g.armASR(g.R[rm]+salt, is, carryMut, !isRegister)
+		case ror:
+			return g.armROR(g.R[rm]+salt, is, carryMut, !isRegister)
+		}
+		return g.R[rm] + salt
 	}
 
-	// When above Bit 25 I=1 =>  immediate(op rd, imm)
-	immediate := inst & 0b1111_1111
-	rotate := uint32((inst>>8)&0b1111) * 2
-	if rotate == 0 {
-		return immediate
-	}
+	// immediate(op rd, imm)
+	op2 := inst & 0b1111_1111
+	is := uint32((inst>>8)&0b1111) * 2
 	carryMut := util.Bit(inst, 20)
-	immediate = g.armROR(immediate, rotate, carryMut, false)
-	return immediate
-}
-
-//  When above Bit 25 I=0 (Register as 2nd Operand) && When below Bit 4 R=0 - Shift by Immediate
-func (g *GBA) armDataRegi(inst uint32) uint32 {
-	immediate := (inst >> 7) & 0b11111
-	rm := inst & 0b1111
-	carryMut := util.Bit(inst, 20)
-	switch shiftType := (inst >> 5) & 0b11; shiftType {
-	case lsl:
-		return g.armLSL(g.R[rm], immediate, carryMut, true)
-	case lsr:
-		return g.armLSR(g.R[rm], immediate, carryMut, true)
-	case asr:
-		return g.armASR(g.R[rm], immediate, carryMut, true)
-	case ror:
-		return g.armROR(g.R[rm], immediate, carryMut, true)
-	}
-	return g.R[rm]
-}
-
-// When above Bit 25 I=0 (Register as 2nd Operand) && When below Bit 4 R=1 - Shift by Register
-func (g *GBA) armDataRegr(inst uint32) uint32 {
-	is := g.R[(inst>>8)&0b1111] & 0b1111_1111
-	rm := inst & 0b1111
-	rmVal := g.R[rm]
-	g.timer(1)
-	if rm == 15 {
-		rmVal += 4
-	}
-	carryMut := util.Bit(inst, 20)
-	switch shiftType := (inst >> 5) & 0b11; shiftType {
-	case lsl:
-		return g.armLSL(rmVal, is, carryMut, false)
-	case lsr:
-		return g.armLSR(rmVal, is, carryMut, false)
-	case asr:
-		return g.armASR(rmVal, is, carryMut, false)
-	case ror:
-		return g.armROR(rmVal, is, carryMut, false)
-	}
-	return rmVal
+	op2 = g.armROR(op2, is, carryMut, false)
+	return op2
 }
 
 func (g *GBA) armALURn(inst uint32) uint32 {
@@ -487,7 +462,6 @@ func (g *GBA) armAND(inst uint32) {
 			g.pipelining()
 		}
 	} else if s {
-		g.SetCPSRFlag(flagC, shifterCarryOut)
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
 	}
@@ -505,7 +479,6 @@ func (g *GBA) armEOR(inst uint32) {
 			g.pipelining()
 		}
 	} else if s {
-		g.SetCPSRFlag(flagC, shifterCarryOut)
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
 	}
@@ -641,7 +614,6 @@ func (g *GBA) armTST(inst uint32) {
 	rnval, op2 := g.armALURn(inst), g.armALUOp2(inst)
 	result := rnval & op2
 	if s := util.Bit(inst, 20); s {
-		g.SetCPSRFlag(flagC, shifterCarryOut)
 		g.SetCPSRFlag(flagZ, result == 0)
 		g.SetCPSRFlag(flagN, util.Bit(result, 31))
 	}
@@ -651,7 +623,6 @@ func (g *GBA) armTEQ(inst uint32) {
 	rnval, op2 := g.armALURn(inst), g.armALUOp2(inst)
 	result := rnval ^ op2
 	if s := util.Bit(inst, 20); s {
-		g.SetCPSRFlag(flagC, shifterCarryOut)
 		g.SetCPSRFlag(flagZ, result == 0)
 		g.SetCPSRFlag(flagN, util.Bit(result, 31))
 	}
@@ -691,7 +662,6 @@ func (g *GBA) armORR(inst uint32) {
 			g.pipelining()
 		}
 	} else if s {
-		g.SetCPSRFlag(flagC, shifterCarryOut)
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
 	}
@@ -709,7 +679,6 @@ func (g *GBA) armMOV(inst uint32) {
 			g.pipelining()
 		}
 	} else if s {
-		g.SetCPSRFlag(flagC, shifterCarryOut)
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
 	}
@@ -727,7 +696,6 @@ func (g *GBA) armBIC(inst uint32) {
 			g.pipelining()
 		}
 	} else if s {
-		g.SetCPSRFlag(flagC, shifterCarryOut)
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
 	}
@@ -745,7 +713,6 @@ func (g *GBA) armMVN(inst uint32) {
 			g.pipelining()
 		}
 	} else if s {
-		g.SetCPSRFlag(flagC, shifterCarryOut)
 		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
 	}

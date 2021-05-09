@@ -80,7 +80,6 @@ func (g *GBA) thumbShift(inst uint16) {
 		g.R[rd] = g.armASR(g.R[rs], is, true, true)
 	}
 
-	g.SetCPSRFlag(flagC, shifterCarryOut)
 	g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 	g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
 }
@@ -159,19 +158,16 @@ func (g *GBA) thumbALU(inst uint16) {
 		g.R[rd] = g.armLSL(g.R[rd], is, is > 0, false) // Rd = Rd << (Rs AND 0FFh)
 		result = uint64(g.R[rd])
 		g.timer(1)
-		g.SetCPSRFlag(flagC, shifterCarryOut)
 	case 3: // LSR
 		is := g.R[rs] & 0xff
 		g.R[rd] = g.armLSR(g.R[rd], is, is > 0, false) // Rd = Rd >> (Rs AND 0FFh)
 		result = uint64(g.R[rd])
 		g.timer(1)
-		g.SetCPSRFlag(flagC, shifterCarryOut)
 	case 4: // ASR
 		is := g.R[rs] & 0xff
 		g.R[rd] = g.armASR(g.R[rd], is, is > 0, false) // Rd = Rd >> (Rs AND 0FFh)
 		result = uint64(g.R[rd])
 		g.timer(1)
-		g.SetCPSRFlag(flagC, shifterCarryOut)
 	case 5: // ADC
 		result = uint64(g.R[rd]) + uint64(g.R[rs]) + uint64(util.BoolToInt(g.GetCPSRFlag(flagC)))
 		g.R[rd] = g.R[rd] + g.R[rs] + uint32(util.BoolToInt(g.GetCPSRFlag(flagC))) // Rd = Rd + Rs + Carry
@@ -187,7 +183,6 @@ func (g *GBA) thumbALU(inst uint16) {
 		g.R[rd] = g.armROR(g.R[rd], is, is > 0, false) // Rd = Rd ROR (Rs AND 0FFh)
 		result = uint64(g.R[rd])
 		g.timer(1)
-		g.SetCPSRFlag(flagC, shifterCarryOut)
 	case 8:
 		result = uint64(g.R[rd] & g.R[rs]) // TST Rd,Rs
 	case 9:
