@@ -77,33 +77,33 @@ func (g *GBA) printInst(inst uint32) {
 func (g *GBA) printIRQExceptions() {
 	flag := uint16(g._getRAM(ram.IE)) & uint16(g._getRAM(ram.IF))
 	switch {
-	case util.Bit(flag, irqVBlank):
+	case util.Bit(flag, int(irqVBlank)):
 		fmt.Println("exception occurred: IRQ VBlank")
-	case util.Bit(flag, irqHBlank):
+	case util.Bit(flag, int(irqHBlank)):
 		fmt.Println("exception occurred: IRQ HBlank")
-	case util.Bit(flag, irqVCount):
+	case util.Bit(flag, int(irqVCount)):
 		fmt.Println("exception occurred: IRQ VCount")
-	case util.Bit(flag, irqTimer0):
+	case util.Bit(flag, int(irqTimer0)):
 		fmt.Println("exception occurred: IRQ Timer0")
-	case util.Bit(flag, irqTimer1):
+	case util.Bit(flag, int(irqTimer1)):
 		fmt.Println("exception occurred: IRQ Timer1")
-	case util.Bit(flag, irqTimer2):
+	case util.Bit(flag, int(irqTimer2)):
 		fmt.Println("exception occurred: IRQ Timer2")
-	case util.Bit(flag, irqTimer3):
+	case util.Bit(flag, int(irqTimer3)):
 		fmt.Println("exception occurred: IRQ Timer3")
-	case util.Bit(flag, irqSerial):
+	case util.Bit(flag, int(irqSerial)):
 		fmt.Println("exception occurred: IRQ Serial")
-	case util.Bit(flag, irqDMA0):
+	case util.Bit(flag, int(irqDMA0)):
 		fmt.Println("exception occurred: IRQ DMA0")
-	case util.Bit(flag, irqDMA1):
+	case util.Bit(flag, int(irqDMA1)):
 		fmt.Println("exception occurred: IRQ DMA1")
-	case util.Bit(flag, irqDMA2):
+	case util.Bit(flag, int(irqDMA2)):
 		fmt.Println("exception occurred: IRQ DMA2")
-	case util.Bit(flag, irqDMA3):
+	case util.Bit(flag, int(irqDMA3)):
 		fmt.Println("exception occurred: IRQ DMA3")
-	case util.Bit(flag, irqKEY):
+	case util.Bit(flag, int(irqKEY)):
 		fmt.Println("exception occurred: IRQ KEY")
-	case util.Bit(flag, irqGamePak):
+	case util.Bit(flag, int(irqGamePak)):
 		fmt.Println("exception occurred: IRQ GamePak")
 	}
 }
@@ -294,9 +294,9 @@ func (ih IRQHistory) String() string {
 	return fmt.Sprintf("IRQ(%s): 0x%08x -> 0x%08x on %s", ih.irq, ih.start, ih.returnTo, mode)
 }
 
-func (g *GBA) PanicHandler(stack bool) {
+func (g *GBA) PanicHandler(place string, stack bool) {
 	if err := recover(); err != nil {
-		fmt.Fprintf(os.Stderr, "crash in emulation: %s in 0x%08x\n", err, g.PC())
+		fmt.Fprintf(os.Stderr, "%s emulation error: %s in 0x%08x\n", place, err, g.PC())
 		for depth := 0; ; depth++ {
 			_, file, line, ok := runtime.Caller(depth)
 			if !ok {
@@ -305,6 +305,5 @@ func (g *GBA) PanicHandler(stack bool) {
 			fmt.Printf("======> %d: %v:%d\n", depth, file, line)
 		}
 		g.Exit("")
-		panic("")
 	}
 }

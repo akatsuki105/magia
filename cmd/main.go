@@ -120,7 +120,7 @@ type Emulator struct {
 }
 
 func (e *Emulator) Update() error {
-	defer e.gba.PanicHandler(true)
+	defer e.gba.PanicHandler("core", true)
 	e.gba.Update()
 	if e.gba.DoSav && e.gba.Frame%60 == 0 {
 		e.writeSav()
@@ -129,6 +129,7 @@ func (e *Emulator) Update() error {
 }
 
 func (e *Emulator) Draw(screen *ebiten.Image) {
+	defer e.gba.PanicHandler("gpu", true)
 	screen.ReplacePixels(e.gba.Draw().Pix)
 }
 

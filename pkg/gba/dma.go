@@ -118,7 +118,7 @@ func (g *GBA) dmaTransfer(t dmaTiming) {
 		}
 
 		if ch.irq() {
-			g.triggerIRQ(IRQID(irqDMA0 + i))
+			g.triggerIRQ(irqDMA0 + IRQID(i))
 		}
 
 		if ch.repeat() {
@@ -159,6 +159,6 @@ func (g *GBA) dmaTransferFifo(ch int) {
 	}
 
 	if g.dma[ch].irq() {
-		g.triggerIRQ(IRQID(irqDMA0 + ch))
+		g.triggerIRQ(irqDMA0 + IRQID(ch))
 	}
 }

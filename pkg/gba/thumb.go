@@ -3,7 +3,6 @@ package gba
 import (
 	"fmt"
 	"magia/pkg/util"
-	"os"
 )
 
 func (g *GBA) thumbStep() {
@@ -64,8 +63,7 @@ func (g *GBA) thumbExec(inst uint16) {
 	case isThumbLinkBranch2(inst):
 		g.thumbLinkBranch2(inst)
 	default:
-		fmt.Fprintf(os.Stderr, "invalid THUMB opcode(0x%04x) in 0x%08x\n", inst, g.inst.loc)
-		g.Exit("")
+		g.Exit(fmt.Sprintf("invalid THUMB opcode(0x%04x) in 0x%08x\n", inst, g.inst.loc))
 	}
 }
 
@@ -89,120 +87,103 @@ func (g *GBA) thumbAddSub(inst uint16) {
 	lhs, rhs := g.R[rs], g.R[delta]
 	switch opcode := (inst >> 9) & 0b11; opcode {
 	case 0: // ADD Rd,Rs,Rn
-		result := uint64(lhs) + uint64(rhs)
-		g.R[rd] = lhs + rhs
-		g.SetCPSRFlag(flagC, util.AddC(result))
-		g.SetCPSRFlag(flagV, util.AddV(lhs, rhs, uint32(result)))
+		res := uint64(lhs) + uint64(rhs)
+		g.R[rd] = uint32(res)
+		g.armArithAddSet(uint32(rd), true, lhs, rhs, res, false)
 	case 1: // SUB Rd,Rs,Rn
-		result := uint64(lhs) - uint64(rhs)
-		g.R[rd] = lhs - rhs
-		g.SetCPSRFlag(flagC, util.SubC(result))
-		g.SetCPSRFlag(flagV, util.SubV(lhs, rhs, uint32(result)))
+		res := uint64(lhs) - uint64(rhs)
+		g.R[rd] = uint32(lhs - rhs)
+		g.armArithSubSet(uint32(rd), true, lhs, rhs, res, false)
 	case 2: // ADD Rd,Rs,#nn
-		result := uint64(lhs) + uint64(delta)
-		g.R[rd] = lhs + uint32(delta)
-		g.SetCPSRFlag(flagC, util.AddC(result))
-		g.SetCPSRFlag(flagV, util.AddV(lhs, uint32(delta), uint32(result)))
+		rhs = uint32(delta)
+		res := uint64(lhs) + uint64(rhs)
+		g.R[rd] = uint32(res)
+		g.armArithAddSet(uint32(rd), true, lhs, rhs, res, false)
 	case 3: // SUB Rd,Rs,#nn
-		result := uint64(lhs) - uint64(delta)
-		g.R[rd] = lhs - uint32(delta)
-		g.SetCPSRFlag(flagC, util.SubC(result))
-		g.SetCPSRFlag(flagV, util.SubV(lhs, uint32(delta), uint32(result)))
+		rhs := uint32(delta)
+		res := uint64(lhs) - uint64(rhs)
+		g.R[rd] = uint32(res)
+		g.armArithSubSet(uint32(rd), true, lhs, rhs, res, false)
 	}
-
-	g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-	g.SetCPSRFlag(flagZ, g.R[rd] == 0)
 }
 
 func (g *GBA) thumbMovCmpAddSub(inst uint16) {
 	rd, nn := (inst>>8)&0b111, uint32(inst&0b1111_1111)
-	lhs := g.R[rd]
-	result := uint64(0)
+	lhs, rhs := g.R[rd], nn
 	switch opcode := (inst >> 11) & 0b11; opcode {
 	case 0: // MOV Rd, #nn
-		result = uint64(nn)
-		g.R[rd] = nn
+		g.R[rd] = rhs
+		g.armLogicSet(uint32(rd), true, g.R[rd], false)
 	case 1: // CMP
-		result = uint64(g.R[rd]) - uint64(nn)
-		g.SetCPSRFlag(flagC, util.SubC(result))
-		g.SetCPSRFlag(flagV, util.SubV(g.R[rd], uint32(nn), uint32(result)))
+		res := uint64(lhs) - uint64(rhs)
+		g.armArithSubSet(uint32(rd), true, lhs, rhs, res, true)
 	case 2: // ADD
-		result = uint64(g.R[rd]) + uint64(nn)
-		g.R[rd] = g.R[rd] + nn
-		g.SetCPSRFlag(flagC, util.AddC(result))
-		g.SetCPSRFlag(flagV, util.AddV(lhs, uint32(nn), uint32(result)))
+		res := uint64(lhs) + uint64(rhs)
+		g.R[rd] = uint32(res)
+		g.armArithAddSet(uint32(rd), true, lhs, rhs, res, false)
 	case 3: // SUB
-		result = uint64(g.R[rd]) - uint64(nn)
-		g.R[rd] = g.R[rd] - nn
-		g.SetCPSRFlag(flagC, util.SubC(result))
-		g.SetCPSRFlag(flagV, util.SubV(lhs, uint32(nn), uint32(result)))
+		res := uint64(lhs) - uint64(rhs)
+		g.R[rd] = uint32(res)
+		g.armArithSubSet(uint32(rd), true, lhs, rhs, res, false)
 	}
-
-	g.SetCPSRFlag(flagN, util.Bit(result, 31))
-	g.SetCPSRFlag(flagZ, uint32(result) == 0)
 }
 
 func (g *GBA) thumbALU(inst uint16) {
 	rs, rd := (inst>>3)&0b111, inst&0b111
 	lhs, rhs := g.R[rd], g.R[rs]
-	result := uint64(0)
 	switch opcode := (inst >> 6) & 0b1111; opcode {
 	case 0: // AND
 		g.R[rd] = g.R[rd] & g.R[rs]
-		result = uint64(g.R[rd])
+		g.armLogicSet(uint32(rd), true, g.R[rd], false)
 	case 1: // EOR(xor)
 		g.R[rd] = g.R[rd] ^ g.R[rs]
-		result = uint64(g.R[rd])
+		g.armLogicSet(uint32(rd), true, g.R[rd], false)
 	case 2: // LSL
 		is := g.R[rs] & 0xff
 		g.R[rd] = g.armLSL(g.R[rd], is, is > 0, false) // Rd = Rd << (Rs AND 0FFh)
-		result = uint64(g.R[rd])
 		g.timer(1)
+		g.armLogicSet(uint32(rd), true, g.R[rd], false)
 	case 3: // LSR
 		is := g.R[rs] & 0xff
 		g.R[rd] = g.armLSR(g.R[rd], is, is > 0, false) // Rd = Rd >> (Rs AND 0FFh)
-		result = uint64(g.R[rd])
 		g.timer(1)
+		g.armLogicSet(uint32(rd), true, g.R[rd], false)
 	case 4: // ASR
 		is := g.R[rs] & 0xff
 		g.R[rd] = g.armASR(g.R[rd], is, is > 0, false) // Rd = Rd >> (Rs AND 0FFh)
-		result = uint64(g.R[rd])
 		g.timer(1)
+		g.armLogicSet(uint32(rd), true, g.R[rd], false)
 	case 5: // ADC
-		result = uint64(g.R[rd]) + uint64(g.R[rs]) + uint64(util.BoolToInt(g.GetCPSRFlag(flagC)))
-		g.R[rd] = g.R[rd] + g.R[rs] + uint32(util.BoolToInt(g.GetCPSRFlag(flagC))) // Rd = Rd + Rs + Carry
-		g.SetCPSRFlag(flagC, util.AddC(result))
-		g.SetCPSRFlag(flagV, util.AddV(lhs, rhs, uint32(result)))
+		res := uint64(lhs) + uint64(rhs) + uint64(g.Carry())
+		g.R[rd] = uint32(res) // Rd = Rd + Rs + Carry
+		g.armArithAddSet(uint32(rd), true, lhs, rhs, res, false)
 	case 6: // SBC
-		result = uint64(g.R[rd]) - uint64(g.R[rs]) - uint64(util.BoolToInt(!g.GetCPSRFlag(flagC)))
-		g.R[rd] = g.R[rd] - g.R[rs] - uint32(util.BoolToInt(!g.GetCPSRFlag(flagC))) // Rd = Rd - Rs - NOT Carry
-		g.SetCPSRFlag(flagC, util.SubC(result))
-		g.SetCPSRFlag(flagV, util.SubV(lhs, rhs, uint32(result)))
+		res := uint64(lhs) - uint64(rhs) - uint64(util.BoolToInt(!g.GetCPSRFlag(flagC)))
+		g.R[rd] = uint32(res) // Rd = Rd - Rs - NOT Carry
+		g.armArithSubSet(uint32(rd), true, lhs, rhs, res, false)
 	case 7: // ROR
 		is := g.R[rs] & 0xff
 		g.R[rd] = g.armROR(g.R[rd], is, is > 0, false) // Rd = Rd ROR (Rs AND 0FFh)
-		result = uint64(g.R[rd])
 		g.timer(1)
-	case 8:
-		result = uint64(g.R[rd] & g.R[rs]) // TST Rd,Rs
-	case 9:
-		rhs := g.R[rs]
-		result = 0 - uint64(g.R[rs])
-		g.R[rd] = -g.R[rs] // Rd = -Rs
-		g.SetCPSRFlag(flagC, util.SubC(result))
-		g.SetCPSRFlag(flagV, util.SubV(0, rhs, g.R[rd]))
+		g.armLogicSet(uint32(rd), true, g.R[rd], false)
+	case 8: // TST
+		g.armLogicSet(uint32(rd), true, g.R[rd]&g.R[rs], true)
+	case 9: // NEG
+		lhs = 0
+		res := 0 - uint64(rhs)
+		g.R[rd] = uint32(res) // Rd = -Rs
+		g.armArithSubSet(uint32(rd), true, lhs, rhs, res, false)
 	case 10: // CMP
-		result = uint64(g.R[rd]) - uint64(g.R[rs]) // Void = Rd - Rs
-		g.SetCPSRFlag(flagC, util.SubC(result))
-		g.SetCPSRFlag(flagV, util.SubV(g.R[rd], g.R[rs], uint32(result)))
-	case 11:
-		result = uint64(g.R[rd]) + uint64(g.R[rs]) // Void = Rd + Rs
-		g.SetCPSRFlag(flagC, util.AddC(result))
-		g.SetCPSRFlag(flagV, util.AddV(g.R[rd], g.R[rs], uint32(result)))
-	case 12:
-		g.R[rd] = g.R[rd] | g.R[rs]
-		result = uint64(g.R[rd])
-	case 13:
+		res := uint64(lhs) - uint64(rhs) // Void = Rd - Rs
+		g.armArithSubSet(uint32(rd), true, lhs, rhs, res, true)
+	case 11: // CMN
+		res := uint64(lhs) + uint64(rhs) // Void = Rd + Rs
+		g.armArithAddSet(uint32(rd), true, lhs, rhs, res, true)
+	case 12: // ORR
+		res := lhs | rhs
+		g.R[rd] = res
+		g.armLogicSet(uint32(rd), true, res, false)
+	case 13: // MUL
 		b1, b2, b3 := (g.R[rd]>>8)&0xff, (g.R[rd]>>16)&0xff, (g.R[rd]>>24)&0xff
 		switch {
 		case b3 > 0:
@@ -215,19 +196,19 @@ func (g *GBA) thumbALU(inst uint16) {
 			g.timer(1)
 		}
 
-		g.R[rd] = g.R[rd] * g.R[rs] // MUL{S} Rd,Rs
-		result = uint64(g.R[rd])
+		g.R[rd] = lhs * rhs // MUL{S} Rd,Rs
 		g.SetCPSRFlag(flagC, false)
-	case 14:
-		g.R[rd] = g.R[rd] & ^g.R[rs] // BIC{S} Rd,Rs
-		result = uint64(g.R[rd])
-	case 15:
-		g.R[rd] = ^g.R[rs]
-		result = uint64(g.R[rd])
+		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
+		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
+	case 14: // BIC
+		res := lhs & ^rhs
+		g.R[rd] = res
+		g.armLogicSet(uint32(rd), true, res, false)
+	case 15: // MVN
+		res := ^g.R[rs]
+		g.R[rd] = res
+		g.armLogicSet(uint32(rd), true, res, false)
 	}
-
-	g.SetCPSRFlag(flagN, util.Bit(result, 31))
-	g.SetCPSRFlag(flagZ, uint32(result) == 0)
 }
 
 func (g *GBA) thumbHiRegisterBXOperand(r uint16) uint32 {
@@ -252,36 +233,24 @@ func (g *GBA) thumbHiRegisterBX(inst uint16) {
 	case 0: // ADD Rd,Rs(Rd = Rd+Rs)
 		g.R[rd] = rdval + rsval
 	case 1: // CMP Rd,Rs(Void = Rd-Rs)
-		result := uint64(rdval) - uint64(rsval)
-		g.SetCPSRFlag(flagN, util.Bit(result, 31))
-		g.SetCPSRFlag(flagZ, uint32(result) == 0)
-		g.SetCPSRFlag(flagC, util.SubC(result))
-		g.SetCPSRFlag(flagV, util.SubV(rdval, rsval, uint32(result)))
+		res := uint64(rdval) - uint64(rsval)
+		g.armArithSubSet(uint32(rd), true, rdval, rsval, res, true)
 	case 2: // MOV Rd,Rs(Rd=Rs)
 		g.R[rd] = rsval
 	case 3: // BX Rs(PC = Rs)
 		rd = 15
-		if util.Bit(rsval, 0) {
-			g.R[15] = rsval - 1
-		} else {
-			g.SetCPSRFlag(flagT, false) // switch to ARM
-			if rs == 15 {
-				g.R[15] = util.Align4(g.inst.loc + 4)
-			} else {
-				g.R[15] = rsval
-			}
-		}
+		g.R[rd] = g.R[rs]
+		g.interwork()
 	}
 
-	if opcode != 1 && rd == 15 {
+	if opcode != 1 && opcode != 3 && rd == 15 {
 		g.pipelining()
 	}
 }
 
 func (g *GBA) thumbLoadPCRel(inst uint16) {
-	rd, nn := (inst>>8)&0b111, uint32(inst&0b1111_1111)*4
-	pc := util.Align4(g.inst.loc + 4)
-	g.R[rd] = g.getRAM32(pc+nn, false)
+	rd, nn := (inst>>8)&0b111, uint32((inst<<2)&0x3fc)
+	g.R[rd] = g.getRAM32((g.R[15]&^uint32(3))+nn, false)
 	g.timer(1)
 }
 
@@ -503,11 +472,8 @@ func (g *GBA) thumbLinkBranch1(inst uint16) {
 
 func (g *GBA) thumbLinkBranch2(inst uint16) {
 	nn := inst & 0b0111_1111_1111
-	g.R[15] = g.R[14] + uint32(nn<<1)
-	g.R[14] = g.inst.loc + 2 // return
-	if g.R[14]&1 == 0 {
-		g.R[14]++
-	}
-
+	imm := g.R[14] + (uint32(nn) << 1)
+	g.R[14] = (g.R[15] - 2) | 1 // return
+	g.R[15] = imm & ^uint32(1)
 	g.pipelining()
 }

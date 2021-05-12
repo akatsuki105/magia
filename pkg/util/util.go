@@ -83,12 +83,6 @@ func Bit(val interface{}, idx int) bool {
 		}
 		return (val & (1 << idx)) != 0
 
-	case int:
-		if idx < 0 || idx > 31 {
-			return false
-		}
-		return (val & (1 << idx)) != 0
-
 	case uint16:
 		if idx < 0 || idx > 15 {
 			return false
@@ -96,6 +90,36 @@ func Bit(val interface{}, idx int) bool {
 		return (val & (1 << idx)) != 0
 
 	case byte:
+		if idx < 0 || idx > 7 {
+			return false
+		}
+		return (val & (1 << idx)) != 0
+
+	case int64:
+		if idx < 0 || idx > 63 {
+			return false
+		}
+		return (val & (1 << idx)) != 0
+
+	case int32:
+		if idx < 0 || idx > 31 {
+			return false
+		}
+		return (val & (1 << idx)) != 0
+
+	case int:
+		if idx < 0 || idx > 31 {
+			return false
+		}
+		return (val & (1 << idx)) != 0
+
+	case int16:
+		if idx < 0 || idx > 15 {
+			return false
+		}
+		return (val & (1 << idx)) != 0
+
+	case int8:
 		if idx < 0 || idx > 7 {
 			return false
 		}

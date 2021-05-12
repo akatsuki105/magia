@@ -1,11 +1,9 @@
 package gpu
 
 import (
-	"fmt"
 	"image"
 	"image/color"
 	"magia/pkg/util"
-	"os"
 
 	"github.com/anthonynsimon/bild/blend"
 )
@@ -185,9 +183,7 @@ func (g *GPU) draw4() *image.RGBA {
 }
 
 func (g *GPU) draw5() *image.RGBA {
-	fmt.Fprintf(os.Stderr, "unsupported BG mode 5\n")
-	panic("")
-
+	panic("unsupported BG mode 5")
 	result := image.NewRGBA(image.Rect(0, 0, 240, 160))
 	return result
 }

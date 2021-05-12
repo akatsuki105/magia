@@ -25,20 +25,20 @@ const (
 type IRQID int
 
 const (
-	irqVBlank  = 0x00
-	irqHBlank  = 0x01
-	irqVCount  = 0x02
-	irqTimer0  = 0x03
-	irqTimer1  = 0x04
-	irqTimer2  = 0x05
-	irqTimer3  = 0x06
-	irqSerial  = 0x07
-	irqDMA0    = 0x08
-	irqDMA1    = 0x09
-	irqDMA2    = 0x0a
-	irqDMA3    = 0x0b
-	irqKEY     = 0x0c
-	irqGamePak = 0x0d
+	irqVBlank  IRQID = 0x00
+	irqHBlank  IRQID = 0x01
+	irqVCount  IRQID = 0x02
+	irqTimer0  IRQID = 0x03
+	irqTimer1  IRQID = 0x04
+	irqTimer2  IRQID = 0x05
+	irqTimer3  IRQID = 0x06
+	irqSerial  IRQID = 0x07
+	irqDMA0    IRQID = 0x08
+	irqDMA1    IRQID = 0x09
+	irqDMA2    IRQID = 0x0a
+	irqDMA3    IRQID = 0x0b
+	irqKEY     IRQID = 0x0c
+	irqGamePak IRQID = 0x0d
 )
 
 // GBA is core object
@@ -98,7 +98,9 @@ func (g *GBA) Exit(s string) {
 
 func (g *GBA) exec(cycles int) {
 	if g.halt {
+		tmp := g.cycle
 		g.timer(cycles)
+		g.cycle = tmp
 		return
 	}
 
@@ -342,4 +344,15 @@ func (g *GBA) LoadSav(bs []byte) {
 
 func (g *GBA) in(addr, start, end uint32) bool {
 	return addr >= start && addr <= end
+}
+
+func (g *GBA) interwork() {
+	g.SetCPSRFlag(flagT, (g.R[15]&1) > 0)
+
+	if g.GetCPSRFlag(flagT) {
+		g.R[15] &= ^uint32(1)
+	} else {
+		g.R[15] &= ^uint32(3)
+	}
+	g.pipelining()
 }

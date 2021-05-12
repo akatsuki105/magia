@@ -73,7 +73,7 @@ func newAPU() *APU {
 	return &APU{
 		context: context,
 		player:  player,
-		chans:   [4]*SoundChan{&SoundChan{}, &SoundChan{}, &SoundChan{}, &SoundChan{}},
+		chans:   [4]*SoundChan{{}, {}, {}, {}},
 	}
 }
 
@@ -491,7 +491,7 @@ func clip(val int32) int16 {
 }
 
 func (g *GBA) soundClock(cycles uint32) {
-	defer g.PanicHandler(true)
+	defer g.PanicHandler("apu", true)
 	sndCycles += cycles
 
 	sampPcmL, sampPcmR := int16(0), int16(0)

@@ -83,7 +83,7 @@ func (g *GBA) timer(c int) {
 	irqs := g.Tick(c)
 	for i, irq := range irqs {
 		if irq {
-			g.triggerIRQ(IRQID(i + 3))
+			g.triggerIRQ(irqTimer0 + IRQID(i))
 		}
 	}
 }

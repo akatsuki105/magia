@@ -59,15 +59,13 @@ func (g *GBA) armExec(inst uint32) {
 		case isArmMSR(inst):
 			g.armMSR(inst)
 		case isArmSWP(inst):
-			fmt.Fprintf(os.Stderr, "SWI is unsupported in 0x%08x\n", g.inst.loc)
-			g.Exit("")
+			g.Exit(fmt.Sprintf("SWI is unsupported in 0x%08x\n", g.inst.loc))
 		case isArmMPY(inst):
 			g.armMPY(inst)
 		case isArmALU(inst):
 			g.armALU(inst)
 		default:
-			fmt.Fprintf(os.Stderr, "invalid ARM opcode(0x%08x) in 0x%08x\n", inst, g.inst.loc)
-			g.Exit("")
+			g.Exit(fmt.Sprintf("invalid ARM opcode(0x%08x) in 0x%08x\n", inst, g.inst.loc))
 		}
 	}
 }
@@ -97,13 +95,8 @@ func (g *GBA) armBL(inst uint32) {
 
 func (g *GBA) armBX(inst uint32) {
 	rnval := g.R[inst&0b1111]
-	if util.Bit(rnval, 0) {
-		g.SetCPSRFlag(flagT, true)
-		g.R[15] = rnval - 1
-	} else {
-		g.R[15] = rnval
-	}
-	g.pipelining()
+	g.R[15] = rnval
+	g.interwork()
 }
 
 func (g *GBA) armLDM(inst uint32) {
@@ -444,278 +437,161 @@ func (g *GBA) armALU(inst uint32) {
 	}
 }
 
-func (g *GBA) armALUChangeOSMode() {
+func (g *GBA) armALUChangeOSMode(flush bool) {
 	g.restorePrivMode()
-	g.pipelining()
+	if flush {
+		g.pipelining()
+	}
 	g.checkIRQ()
+}
+
+// set flag in Logic instruction
+func (g *GBA) armLogicSet(rd uint32, s bool, res uint32, isTstTeq bool) {
+	if rd == 15 {
+		if s {
+			g.armALUChangeOSMode(!isTstTeq)
+		} else if !isTstTeq {
+			g.pipelining()
+		}
+	} else if s {
+		g.SetCPSRFlag(flagZ, res == 0)
+		g.SetCPSRFlag(flagN, util.Bit(res, 31))
+	}
+}
+
+func (g *GBA) armArithAddSet(rd uint32, s bool, lhs, rhs uint32, res uint64, isCmn bool) {
+	if rd == 15 {
+		if s {
+			g.armALUChangeOSMode(!isCmn)
+		} else if !isCmn {
+			g.pipelining()
+		}
+	} else if s {
+		g.SetCPSRFlag(flagZ, uint32(res) == 0)
+		g.SetCPSRFlag(flagN, util.Bit(uint32(res), 31))
+		g.SetCPSRFlag(flagC, util.AddC(res))
+		g.SetCPSRFlag(flagV, util.AddV(uint32(lhs), uint32(rhs), uint32(res)))
+	}
+}
+
+func (g *GBA) armArithSubSet(rd uint32, s bool, lhs, rhs uint32, res uint64, isCmp bool) {
+	if rd == 15 {
+		if s {
+			g.armALUChangeOSMode(!isCmp)
+		} else if !isCmp {
+			g.pipelining()
+		}
+	} else if s {
+		g.SetCPSRFlag(flagZ, uint32(res) == 0)
+		g.SetCPSRFlag(flagN, util.Bit(uint32(res), 31))
+		g.SetCPSRFlag(flagC, util.SubC(res))
+		g.SetCPSRFlag(flagV, util.SubV(lhs, rhs, uint32(res)))
+	}
 }
 
 func (g *GBA) armAND(inst uint32) {
 	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
 	g.R[rd] = rnval & op2
-
-	s := util.Bit(inst, 20)
-	if rd == 15 {
-		if s {
-			g.armALUChangeOSMode()
-		} else {
-			g.pipelining()
-		}
-	} else if s {
-		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
-		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-	}
+	g.armLogicSet(rd, util.Bit(inst, 20), g.R[rd], false)
 }
 
 func (g *GBA) armEOR(inst uint32) {
 	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
 	g.R[rd] = rnval ^ op2
-
-	s := util.Bit(inst, 20)
-	if rd == 15 {
-		if s {
-			g.armALUChangeOSMode()
-		} else {
-			g.pipelining()
-		}
-	} else if s {
-		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
-		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-	}
+	g.armLogicSet(rd, util.Bit(inst, 20), g.R[rd], false)
 }
 
 func (g *GBA) armSUB(inst uint32) {
 	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
-	g.R[rd] = rnval - op2
-
-	s := util.Bit(inst, 20)
-	if rd == 15 {
-		if s {
-			g.armALUChangeOSMode()
-		} else {
-			g.pipelining()
-		}
-	} else if s {
-		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
-		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-		g.SetCPSRFlag(flagC, util.SubC(uint64(rnval)-uint64(op2)))
-		g.SetCPSRFlag(flagV, util.SubV(rnval, op2, g.R[rd]))
-	}
+	res := uint64(rnval) - uint64(op2)
+	g.R[rd] = uint32(res)
+	g.armArithSubSet(rd, util.Bit(inst, 20), rnval, op2, res, false)
 }
 
 func (g *GBA) armRSB(inst uint32) {
 	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
-	g.R[rd] = op2 - rnval
-
-	s := util.Bit(inst, 20)
-	if rd == 15 {
-		if s {
-			g.armALUChangeOSMode()
-		} else {
-			g.pipelining()
-		}
-	} else if s {
-		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
-		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-		g.SetCPSRFlag(flagC, util.SubC(uint64(op2)-uint64(rnval)))
-		g.SetCPSRFlag(flagV, util.SubV(op2, rnval, g.R[rd]))
-	}
+	res := uint64(op2) - uint64(rnval)
+	g.R[rd] = uint32(res)
+	g.armArithSubSet(rd, util.Bit(inst, 20), op2, rnval, res, false)
 }
 
 func (g *GBA) armADD(inst uint32) {
 	rd, rnval, op2 := (inst>>12)&0b1111, g.armALURn(inst), g.armALUOp2(inst)
-	g.R[rd] = rnval + op2
-
-	s := util.Bit(inst, 20)
-	if rd == 15 {
-		if s {
-			g.armALUChangeOSMode()
-		} else {
-			g.pipelining()
-		}
-	} else if s {
-		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
-		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-		g.SetCPSRFlag(flagC, util.AddC(uint64(rnval)+uint64(op2)))
-		g.SetCPSRFlag(flagV, util.AddV(rnval, op2, g.R[rd]))
-	}
+	res := uint64(rnval) + uint64(op2)
+	g.R[rd] = uint32(res)
+	g.armArithAddSet(rd, util.Bit(inst, 20), rnval, op2, res, false)
 }
 
 func (g *GBA) armADC(inst uint32) {
-	carry := uint32(0)
-	if g.GetCPSRFlag(flagC) {
-		carry = 1
-	}
+	carry := g.Carry()
 	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
-	g.R[rd] = rnval + op2 + carry
-
-	s := util.Bit(inst, 20)
-	if rd == 15 {
-		if s {
-			g.armALUChangeOSMode()
-		} else {
-			g.pipelining()
-		}
-	} else if s {
-		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
-		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-		g.SetCPSRFlag(flagC, util.AddC(uint64(rnval)+uint64(op2)+uint64(carry)))
-		g.SetCPSRFlag(flagV, util.AddV(rnval, op2, g.R[rd]))
-	}
+	res := uint64(rnval) + uint64(op2) + uint64(carry)
+	g.R[rd] = uint32(res)
+	g.armArithAddSet(rd, util.Bit(inst, 20), rnval, op2, res, false)
 }
 
 func (g *GBA) armSBC(inst uint32) {
-	carry := uint32(0)
-	if g.GetCPSRFlag(flagC) {
-		carry = 1
-	}
+	carry := g.Carry()
 	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
-	g.R[rd] = rnval - op2 + carry - 1
-
-	s := util.Bit(inst, 20)
-	if rd == 15 {
-		if s {
-			g.armALUChangeOSMode()
-		} else {
-			g.pipelining()
-		}
-	} else if s {
-		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
-		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-		g.SetCPSRFlag(flagC, util.SubC(uint64(rnval)-uint64(op2)+uint64(carry)-uint64(1)))
-		g.SetCPSRFlag(flagV, util.SubV(rnval, op2, g.R[rd]))
-	}
+	res := uint64(rnval) - uint64(op2) + (uint64(carry) - 1)
+	g.R[rd] = uint32(res)
+	g.armArithSubSet(rd, util.Bit(inst, 20), rnval, op2, res, false)
 }
 
 func (g *GBA) armRSC(inst uint32) {
-	carry := uint32(0)
-	if g.GetCPSRFlag(flagC) {
-		carry = 1
-	}
+	carry := g.Carry()
 	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
-	g.R[rd] = op2 - rnval + carry - 1
-
-	s := util.Bit(inst, 20)
-	if rd == 15 {
-		if s {
-			g.armALUChangeOSMode()
-		} else {
-			g.pipelining()
-		}
-	} else if s {
-		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
-		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-		g.SetCPSRFlag(flagC, util.SubC(uint64(op2)-uint64(rnval)+uint64(carry)-uint64(1)))
-		g.SetCPSRFlag(flagV, util.SubV(op2, rnval, g.R[rd]))
-	}
+	res := uint64(op2) - uint64(rnval) + (uint64(carry - 1))
+	g.R[rd] = uint32(res)
+	g.armArithSubSet(rd, util.Bit(inst, 20), op2, rnval, res, false)
 }
 
 func (g *GBA) armTST(inst uint32) {
 	rnval, op2 := g.armALURn(inst), g.armALUOp2(inst)
 	result := rnval & op2
-	if s := util.Bit(inst, 20); s {
-		g.SetCPSRFlag(flagZ, result == 0)
-		g.SetCPSRFlag(flagN, util.Bit(result, 31))
-	}
+	g.armLogicSet(inst>>12&0b1111, util.Bit(inst, 20), result, true)
 }
 
 func (g *GBA) armTEQ(inst uint32) {
 	rnval, op2 := g.armALURn(inst), g.armALUOp2(inst)
 	result := rnval ^ op2
-	if s := util.Bit(inst, 20); s {
-		g.SetCPSRFlag(flagZ, result == 0)
-		g.SetCPSRFlag(flagN, util.Bit(result, 31))
-	}
+	g.armLogicSet(inst>>12&0b1111, util.Bit(inst, 20), result, true)
 }
 
 func (g *GBA) armCMP(inst uint32) {
 	rnval, op2 := g.armALURn(inst), g.armALUOp2(inst)
-	result := rnval - op2
-	if s := util.Bit(inst, 20); s {
-		g.SetCPSRFlag(flagZ, result == 0)
-		g.SetCPSRFlag(flagN, util.Bit(result, 31))
-		g.SetCPSRFlag(flagC, util.SubC(uint64(rnval)-uint64(op2)))
-		g.SetCPSRFlag(flagV, util.SubV(rnval, op2, result))
-	}
+	res := uint64(rnval) - uint64(op2)
+	g.armArithSubSet(inst>>12&0b1111, util.Bit(inst, 20), rnval, op2, res, true)
 }
 
 func (g *GBA) armCMN(inst uint32) {
 	rnval, op2 := g.armALURn(inst), g.armALUOp2(inst)
-	result := rnval + op2
-	if s := util.Bit(inst, 20); s {
-		g.SetCPSRFlag(flagZ, result == 0)
-		g.SetCPSRFlag(flagN, util.Bit(result, 31))
-		g.SetCPSRFlag(flagC, util.AddC(uint64(rnval)+uint64(op2)))
-		g.SetCPSRFlag(flagV, util.AddV(rnval, op2, result))
-	}
+	res := uint64(rnval) + uint64(op2)
+	g.armArithAddSet(inst>>12&0b1111, util.Bit(inst, 20), rnval, op2, res, true)
 }
 
 func (g *GBA) armORR(inst uint32) {
 	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
 	g.R[rd] = rnval | op2
-
-	s := util.Bit(inst, 20)
-	if rd == 15 {
-		if s {
-			g.armALUChangeOSMode()
-		} else {
-			g.pipelining()
-		}
-	} else if s {
-		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
-		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-	}
+	g.armLogicSet(rd, util.Bit(inst, 20), g.R[rd], false)
 }
 
 func (g *GBA) armMOV(inst uint32) {
 	rd, op2 := (inst>>12)&0b1111, g.armALUOp2(inst)
 	g.R[rd] = op2
-
-	s := util.Bit(inst, 20)
-	if rd == 15 {
-		if s {
-			g.armALUChangeOSMode()
-		} else {
-			g.pipelining()
-		}
-	} else if s {
-		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
-		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-	}
+	g.armLogicSet(rd, util.Bit(inst, 20), g.R[rd], false)
 }
 
 func (g *GBA) armBIC(inst uint32) {
 	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
 	g.R[rd] = rnval & ^op2
-
-	s := util.Bit(inst, 20)
-	if rd == 15 {
-		if s {
-			g.armALUChangeOSMode()
-		} else {
-			g.pipelining()
-		}
-	} else if s {
-		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
-		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-	}
+	g.armLogicSet(rd, util.Bit(inst, 20), g.R[rd], false)
 }
 
 func (g *GBA) armMVN(inst uint32) {
 	rd, op2 := inst>>12&0b1111, g.armALUOp2(inst)
 	g.R[rd] = ^op2
-
-	s := util.Bit(inst, 20)
-	if rd == 15 {
-		if s {
-			g.armALUChangeOSMode()
-		} else {
-			g.pipelining()
-		}
-	} else if s {
-		g.SetCPSRFlag(flagZ, g.R[rd] == 0)
-		g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
-	}
+	g.armLogicSet(rd, util.Bit(inst, 20), g.R[rd], false)
 }
 
 func (g *GBA) armMPY(inst uint32) {
