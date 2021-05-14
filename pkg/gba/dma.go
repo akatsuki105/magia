@@ -57,12 +57,10 @@ func (ch *DMA) set(ofs uint32, b byte) bool {
 
 func (ch *DMA) dstCnt() int64 {
 	switch (ch.cnt() >> (16 + 5)) & 0b11 {
-	case 0:
+	case 0, 3:
 		return int64(ch.size()) / 8
 	case 1:
 		return -int64(ch.size()) / 8
-	case 3:
-		return int64(ch.size()) / 8
 	default:
 		return 0
 	}
@@ -106,12 +104,7 @@ func (g *GBA) dmaTransfer(t dmaTiming) {
 		size := ch.size()
 		srcInc, dstInc := ch.srcCnt(), ch.dstCnt()
 		for ch.count > 0 {
-			switch size {
-			case 16:
-				g._setRAM(ch.dst, g._getRAM(ch.src), 2)
-			case 32:
-				g._setRAM(ch.dst, g._getRAM(ch.src), 4)
-			}
+			g._setRAM(ch.dst, g._getRAM(ch.src), size/8)
 
 			ch.dst, ch.src = uint32(int64(ch.dst)+dstInc), uint32(int64(ch.src)+srcInc)
 			ch.count--
@@ -138,9 +131,8 @@ func (g *GBA) dmaTransferFifo(ch int) {
 		return
 	}
 
-	// 32bit × 4 = 4 words
 	cnt := g.dma[ch].cnt()
-	for i := 0; i < 4; i++ {
+	for i := 0; i < 4; i++ { // 32bit × 4 = 4 words
 		val := g._getRAM(g.dma[ch].src)
 		g._setRAM(g.dma[ch].dst, val, 4)
 
