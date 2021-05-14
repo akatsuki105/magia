@@ -2,6 +2,7 @@ package gba
 
 import (
 	"fmt"
+	"magia/pkg/gpu"
 	"magia/pkg/ram"
 	"magia/pkg/util"
 	"os"
@@ -53,13 +54,13 @@ func (g *GBA) breakpoint() {
 
 func (g *GBA) thumbInst(inst uint16) {
 	if inst != 0 {
-		fmt.Printf("Thumb pc, inst, cycle: 0x%04x, 0x%02x, %d:%d\n", g.inst.loc, inst, g.line, g.cycle)
+		fmt.Printf("Thumb pc, inst, cycle: 0x%04x, 0x%02x, %d:%d\n", g.inst.loc, inst, g.GPU.IO[gpu.VCOUNT], g.cycle)
 	}
 }
 
 func (g *GBA) armInst(inst uint32) {
 	if inst != 0 {
-		fmt.Printf("ARM pc, inst, cycle: 0x%04x, 0x%04x, %d:%d\n", g.inst.loc, inst, g.line, g.cycle)
+		fmt.Printf("ARM pc, inst, cycle: 0x%04x, 0x%04x, %d:%d\n", g.inst.loc, inst, g.GPU.IO[gpu.VCOUNT], g.cycle)
 	}
 }
 
@@ -67,10 +68,10 @@ func (g *GBA) printInst(inst uint32) {
 	if inst != 0 {
 		t := g.GetCPSRFlag(flagT)
 		if t {
-			fmt.Printf("Thumb pc, inst, cycle: 0x%04x, 0x%02x, %d:%d\n", g.inst.loc, inst, g.line, g.cycle)
+			fmt.Printf("Thumb pc, inst, cycle: 0x%04x, 0x%02x, %d:%d\n", g.inst.loc, inst, g.GPU.IO[gpu.VCOUNT], g.cycle)
 			return
 		}
-		fmt.Printf("ARM pc, inst, cycle: 0x%04x, 0x%04x, %d:%d\n", g.inst.loc, inst, g.line, g.cycle)
+		fmt.Printf("ARM pc, inst, cycle: 0x%04x, 0x%04x, %d:%d\n", g.inst.loc, inst, g.GPU.IO[gpu.VCOUNT], g.cycle)
 	}
 }
 
@@ -221,12 +222,8 @@ func (g *GBA) outputCPUSet() string {
 	}
 }
 
-func (g *GBA) printPC() {
-	fmt.Printf(" PC: %04x\n", g.pipe.inst[0].loc)
-}
-func (g *GBA) PC() uint32 {
-	return g.inst.loc
-}
+func (g *GBA) printPC()   { fmt.Printf(" PC: %04x\n", g.pipe.inst[0].loc) }
+func (g *GBA) PC() uint32 { return g.inst.loc }
 
 func (g *GBA) printIRQRegister() {
 	str := ` IME: %d IE: %02x IF: %02x

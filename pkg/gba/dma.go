@@ -108,9 +108,9 @@ func (g *GBA) dmaTransfer(t dmaTiming) {
 		for ch.count > 0 {
 			switch size {
 			case 16:
-				g.setRAM16(ch.dst, uint16(g.getRAM16(ch.src, true)), true)
+				g._setRAM(ch.dst, g._getRAM(ch.src), 2)
 			case 32:
-				g.setRAM32(ch.dst, g.getRAM32(ch.src, true), true)
+				g._setRAM(ch.dst, g._getRAM(ch.src), 4)
 			}
 
 			ch.dst, ch.src = uint32(int64(ch.dst)+dstInc), uint32(int64(ch.src)+srcInc)
@@ -141,8 +141,8 @@ func (g *GBA) dmaTransferFifo(ch int) {
 	// 32bit × 4 = 4 words
 	cnt := g.dma[ch].cnt()
 	for i := 0; i < 4; i++ {
-		val := g.getRAM32(g.dma[ch].src, true)
-		g.setRAM32(g.dma[ch].dst, val, true)
+		val := g._getRAM(g.dma[ch].src)
+		g._setRAM(g.dma[ch].dst, val, 4)
 
 		if ch == 1 {
 			g.fifoACopy(val)

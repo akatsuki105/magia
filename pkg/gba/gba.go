@@ -50,7 +50,6 @@ type GBA struct {
 	inst       Inst
 	cycle      int
 	Frame      uint
-	line       int
 	halt       bool
 	pipe       Pipe
 	timers     Timers
@@ -173,7 +172,7 @@ func (g *GBA) exception(addr uint32, mode Mode) {
 
 // Update GBA by 1 frame
 func (g *GBA) Update() {
-	g.line, g.GPU.IO[gpu.VCOUNT] = 0, 0
+	g.GPU.IO[gpu.VCOUNT] = 0
 
 	// line 0~159
 	for y := 0; y < 160; y++ {
@@ -207,6 +206,13 @@ func (g *GBA) Update() {
 
 func (g *GBA) scanline() {
 	dispstat := uint16(g._getRAM(ram.DISPSTAT))
+	vCount, lyc := g.GPU.IO[gpu.VCOUNT], byte(g._getRAM(ram.DISPSTAT+1))
+	if vCount == lyc {
+		if util.Bit(dispstat, 5) {
+			g.triggerIRQ(irqVCount)
+		}
+	}
+
 	g.exec(1006)
 
 	// HBlank
@@ -222,20 +228,11 @@ func (g *GBA) scanline() {
 	g.soundClock(1232)
 	g.GPU.SetHBlank(false)
 
-	vCount, lyc := g.GPU.IncrementVCount(), byte(g._getRAM(ram.DISPSTAT+1))
-	if vCount == lyc {
-		if util.Bit(dispstat, 5) {
-			g.triggerIRQ(irqVCount)
-		}
-	}
-
-	g.line++
+	g.GPU.IO[gpu.VCOUNT]++ // increment vcount
 }
 
 // Draw GBA screen by 1 frame
-func (g *GBA) Draw() *image.RGBA {
-	return g.GPU.Draw()
-}
+func (g *GBA) Draw() *image.RGBA { return g.GPU.Draw() }
 
 func (g *GBA) checkIRQ() {
 	cond1 := !g.GetCPSRFlag(flagI)

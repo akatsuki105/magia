@@ -11,14 +11,13 @@ import (
 
 const (
 	CPU_FREQ_HZ              = 16777216
-	SND_FREQUENCY            = 32768
+	SND_FREQUENCY            = 32768 // sample rate
 	SND_SAMPLES              = 512
 	SAMP_CYCLES              = (CPU_FREQ_HZ / SND_FREQUENCY)
 	BUFF_SAMPLES             = ((SND_SAMPLES) * 16 * 2)
 	BUFF_SAMPLES_MSK         = ((BUFF_SAMPLES) - 1)
 	SAMPLE_TIME      float64 = 1.0 / SND_FREQUENCY
-	SAMPLE_RATE              = SND_FREQUENCY
-	STREAM_LEN               = 2184 // 2 * 2 * sampleRate * (1/60)
+	STREAM_LEN               = (2 * 2 * SND_FREQUENCY / 60) - (2*2*SND_FREQUENCY/60)%4
 )
 
 const (
@@ -48,10 +47,6 @@ type SoundChan struct {
 	samples, lengthTime, sweepTime, envTime float64
 }
 
-func isWaveRAM(addr uint32) bool {
-	return addr >= 0x04000090 && addr <= 0x0400009f
-}
-
 func isResetSoundChan(addr uint32) bool {
 	_, ok := resetSoundChanMap[addr]
 	return ok
@@ -64,7 +59,7 @@ func (g *GBA) resetSoundChan(addr uint32, b byte) {
 func newAPU() *APU {
 	stream = make([]byte, STREAM_LEN)
 
-	context, err := oto.NewContext(SAMPLE_RATE, 2, 2, STREAM_LEN)
+	context, err := oto.NewContext(SND_FREQUENCY, 2, 2, STREAM_LEN)
 	if err != nil {
 		panic(err)
 	}
@@ -410,11 +405,7 @@ func soundMix() {
 
 	// Avoid desync between the Play cursor and the Write cursor
 	delta := (int32(sndCurWrite-sndCurPlay) >> 8) - (int32(sndCurWrite-sndCurPlay)>>8)%2
-	if delta >= 0 {
-		sndCurPlay += uint32(delta)
-	} else {
-		sndCurPlay -= uint32(-delta)
-	}
+	sndCurPlay = util.AddInt32(sndCurPlay, delta)
 }
 
 var (
@@ -497,7 +488,7 @@ func (g *GBA) soundClock(cycles uint32) {
 	sampPcmL, sampPcmR := int16(0), int16(0)
 
 	cnth := uint16(g._getRAM(ram.SOUNDCNT_H)) // snd_pcm_vol
-	volADiv, volBDiv := int16((cnth>>2)&0b1), int16((cnth>>3)&0b1)
+	volADiv, volBDiv := int16((cnth>>2)&0b1)^1, int16((cnth>>3)&0b1)^1
 	sampCh4, sampCh5 := (int16(fifoASamp)<<1)>>volADiv, (int16(fifoBSamp)<<1)>>volBDiv
 
 	// Left

@@ -5,12 +5,8 @@ import (
 	"magia/pkg/ram"
 )
 
-func (g *GBA) printBGMap(bg int) {
-	g.GPU.PrintBGMap(bg)
-}
-func (g *GBA) printPalette() {
-	g.GPU.PrintPalette()
-}
+func (g *GBA) printBGMap(bg int) { g.GPU.PrintBGMap(bg) }
+func (g *GBA) printPalette()     { g.GPU.PrintPalette() }
 func (g *GBA) printLCD() {
 	str := ` dispcnt: 0x%04x dispstat: 0x%04x LY: %d
 `

@@ -76,16 +76,6 @@ func (g *GPU) VBlank() bool {
 	return util.Bit(uint16(g.IO[DISPSTAT]), 0)
 }
 
-// IncrementVCount increments VCOUNT
-func (g *GPU) IncrementVCount() byte {
-	g.IO[VCOUNT]++
-	if g.IO[VCOUNT] == 228 {
-		g.IO[VCOUNT] = 0
-	}
-	g.SetVCounter(g.IO[VCOUNT] == g.IO[DISPSTAT+1])
-	return g.IO[VCOUNT]
-}
-
 func (g *GPU) SetVBlank(b bool) {
 	if b {
 		g.IO[DISPSTAT] = g.IO[DISPSTAT] | 0b0000_0001

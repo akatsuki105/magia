@@ -79,15 +79,13 @@ func (g *GBA) armSWI(inst uint32) {
 }
 
 func (g *GBA) armB(inst uint32) {
-	nn := int32(inst)
-	nn = (nn << 8) >> 6
+	nn := (int32(inst) << 8) >> 6
 	g.R[15] = util.AddInt32(g.inst.loc+8, nn)
 	g.pipelining()
 }
 
 func (g *GBA) armBL(inst uint32) {
-	nn := int32(inst)
-	nn = (nn << 8) >> 6
+	nn := (int32(inst) << 8) >> 6
 	g.R[14] = g.inst.loc + 4
 	g.R[15] = util.AddInt32(g.inst.loc+8, nn)
 	g.pipelining()
@@ -835,8 +833,7 @@ func (g *GBA) armLDRSH(inst uint32) {
 
 func (g *GBA) armSTRH(inst uint32) {
 	ofs := (((inst >> 8) & 0b1111) << 4) | (inst & 0b1111) // immediate
-	if !util.Bit(inst, 22) {
-		// register
+	if !util.Bit(inst, 22) {                               // register
 		rm := inst & 0b1111
 		ofs = g.R[rm]
 	}

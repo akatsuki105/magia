@@ -42,19 +42,11 @@ func armDecodeBranch(pc, inst uint32) string {
 	case util.Bit(inst, 24):
 		nn := int32(inst)
 		nn = (nn << 8) >> 6
-		if nn >= 0 {
-			return fmt.Sprintf("bl 0x%08x", pc+8+uint32(nn))
-		} else {
-			return fmt.Sprintf("bl 0x%08x", pc+8-uint32(-nn))
-		}
+		return fmt.Sprintf("bl 0x%08x", util.AddInt32(pc+8, nn))
 	default:
 		nn := int32(inst)
 		nn = (nn << 8) >> 6
-		if nn >= 0 {
-			return fmt.Sprintf("b 0x%08x", pc+8+uint32(nn))
-		} else {
-			return fmt.Sprintf("b 0x%08x", pc+8-uint32(-nn))
-		}
+		return fmt.Sprintf("b 0x%08x", util.AddInt32(pc+8, nn))
 	}
 }
 
@@ -218,7 +210,7 @@ func armDecodeMPY(inst uint32) string {
 		rd, rn, rs, rm := inst>>16&0b1111, inst>>12&0b1111, inst>>8&0b1111, inst&0b1111
 		return fmt.Sprintf("mla r%d,r%d,r%d,r%d", rd, rm, rs, rn)
 	case 0b0010:
-		return fmt.Sprintf("UMAAL is unsupported")
+		return "UMAAL is unsupported"
 	case 0b0100:
 		rdHi, rdLo, rs, rm := inst>>16&0b1111, inst>>12&0b1111, inst>>8&0b1111, inst&0b1111
 		return fmt.Sprintf("umull r%d,r%d,r%d,r%d", rdLo, rdHi, rm, rs)
@@ -248,15 +240,8 @@ func armDecodeALU(inst uint32) string {
 		is := (inst >> 7) & 0b11111
 		rm := inst & 0b1111
 
-		shift := "lsl"
-		switch shiftType := (inst >> 5) & 0b11; shiftType {
-		case lsr:
-			shift = "lsr"
-		case asr:
-			shift = "asr"
-		case ror:
-			shift = "ror"
-		}
+		shiftType := (inst >> 5) & 0b11
+		shift := [4]string{"lsl", "lsr", "asr", "ror"}[shiftType]
 
 		isRegister := (inst>>4)&0b1 > 0
 		if isRegister {

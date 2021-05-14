@@ -115,14 +115,12 @@ func (g *GBA) _setRAM(addr uint32, val uint32, width int) {
 		}
 	case addr == ram.SOUNDCNT_H:
 		for i := uint32(0); i < uint32(width); i++ {
-			g.RAM.Set8(addr+i, byte(val>>(8*i)))
+			g.RAM.IO[ram.IOOffset(addr+i)] = byte(val >> (8 * i))
 		}
 		if util.Bit(val, 11) {
-			fifoA = [32]int8{}
 			fifoALen = 0
 		}
 		if util.Bit(val, 15) {
-			fifoB = [32]int8{}
 			fifoBLen = 0
 		}
 	case addr == ram.SOUNDCNT_X:
@@ -133,6 +131,7 @@ func (g *GBA) _setRAM(addr uint32, val uint32, width int) {
 			for i := uint32(0x4000060); i <= 0x4000081; i++ {
 				g.RAM.IO[ram.IOOffset(i)] = 0
 			}
+			g.RAM.IO[ram.IOOffset(addr)] = 0
 		}
 	case g.in(addr, ram.WAVE_RAM, ram.WAVE_RAM+0xf): // wave ram
 		for i := uint32(0); i < uint32(width); i++ {

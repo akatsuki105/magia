@@ -49,10 +49,7 @@ func (g *GBA) armASR(val uint32, is uint32, carryMut bool, imm bool) uint32 {
 
 func (g *GBA) armROR(val uint32, is uint32, carryMut bool, imm bool) uint32 {
 	if is == 0 && imm {
-		c := uint32(0)
-		if g.GetCPSRFlag(flagC) {
-			c = 1
-		}
+		c := g.Carry()
 		g.SetCPSRFlag(flagC, util.Bit(val, 0))
 		return util.ROR(((val & ^(uint32(1))) | c), 1)
 	}

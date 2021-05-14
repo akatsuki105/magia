@@ -17,6 +17,8 @@ var (
 	wsS2 = [2]int{8, 1}
 )
 
+var timerEnable byte = 0
+
 func (g *GBA) cycleN(addr uint32) int {
 	switch {
 	case ram.EWRAM(addr):
@@ -80,6 +82,9 @@ func (g *GBA) waitBus(addr uint32, size int, s bool) int {
 
 func (g *GBA) timer(c int) {
 	g.cycle += c
+	if timerEnable == 0 {
+		return
+	}
 	irqs := g.Tick(c)
 	for i, irq := range irqs {
 		if irq {
@@ -108,7 +113,7 @@ func (t *Timer) increment(inc int) bool {
 	return t.Count < previous // if overflow occurs
 }
 func (t *Timer) overflow() bool {
-	t.Count = t.Reload
+	t.Count += t.Reload
 	return t.irq()
 }
 
@@ -137,11 +142,17 @@ func (ts *Timers) SetIO(offset uint32, b byte) {
 	case 1:
 		ts[idx].Reload = (ts[idx].Reload & 0xff) | (uint16(b) << 8)
 	case 2:
+		if util.Bit(b, 7) {
+			timerEnable |= (1 << idx)
+		} else {
+			timerEnable &= ^(1 << idx)
+		}
 		previous := util.Bit(ts[idx].Control, 7)
 		ts[idx].Control = b
 		// The reload value is copied into the counter when the timer start bit becomes changed from 0 to 1.
-		if !previous && util.Bit(ts[idx].Control, 7) {
+		if !previous && util.Bit(b, 7) {
 			ts[idx].Count = ts[idx].Reload
+			ts[idx].Next = 0
 		}
 	}
 }
@@ -151,67 +162,38 @@ var clockShift = [4]byte{0, 6, 8, 10}
 func (g *GBA) Tick(cycles int) [4]bool {
 	overflow, irq := false, [4]bool{}
 	ts := &g.timers
+	cnth := uint16(g._getRAM(ram.SOUNDCNT_H))
 
-	if ts[0].enable() {
-		ts[0].Next += cycles
-		inc := ts[0].Next >> clockShift[ts[0].Control&0b11]
-		if inc > 0 {
-			ts[0].Next -= inc << clockShift[ts[0].Control&0b11]
-			overflow = ts[0].increment(inc)
-			if overflow {
-				cnth := uint16(g._getRAM(ram.SOUNDCNT_H))
-				if !util.Bit(cnth, SoundATimer) {
-					g.fifoALoad()
-					if fifoALen <= 0x10 { // Request more data per DMA
-						g.dmaTransferFifo(1)
-					}
-				}
-				if !util.Bit(cnth, SoundBTimer) {
-					g.fifoBLoad()
-					if fifoBLen <= 0x10 {
-						g.dmaTransferFifo(2)
-					}
-				}
-				if ts[0].overflow() {
-					irq[0] = true
-				}
-			}
-		}
-	}
-
-	for i := 1; i < 4; i++ {
+	for i := 0; i < 4; i++ {
 		if !ts[i].enable() {
 			overflow = false
 			continue
 		}
 
 		inc := 0
-		if ts[i].cascade() {
+		if i > 0 && ts[i].cascade() {
 			if overflow {
 				inc = 1
 			}
 		} else {
 			ts[i].Next += cycles
 			inc = ts[i].Next >> clockShift[ts[i].Control&0b11]
-			ts[i].Next -= inc << clockShift[ts[i].Control&0b11]
+			ts[i].Next -= (inc << clockShift[ts[i].Control&0b11])
 		}
 
 		if inc > 0 {
 			overflow = ts[i].increment(inc)
 			if overflow {
-				if i == 1 {
-					cnth := uint16(g._getRAM(ram.SOUNDCNT_H))
-					if util.Bit(cnth, SoundATimer) {
-						g.fifoALoad()
-						if fifoALen <= 0x10 {
-							g.dmaTransferFifo(1)
-						}
+				if (cnth>>SoundATimer)&0b1 == uint16(i) {
+					g.fifoALoad()
+					if fifoALen <= 0x10 {
+						g.dmaTransferFifo(1)
 					}
-					if util.Bit(cnth, SoundBTimer) {
-						g.fifoBLoad()
-						if fifoBLen <= 0x10 {
-							g.dmaTransferFifo(2)
-						}
+				}
+				if (cnth>>SoundBTimer)&0b1 == uint16(i) {
+					g.fifoBLoad()
+					if fifoBLen <= 0x10 {
+						g.dmaTransferFifo(2)
 					}
 				}
 

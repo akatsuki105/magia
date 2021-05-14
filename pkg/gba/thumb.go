@@ -77,9 +77,7 @@ func (g *GBA) thumbShift(inst uint16) {
 	case 2:
 		g.R[rd] = g.armASR(g.R[rs], is, true, true)
 	}
-
-	g.SetCPSRFlag(flagZ, g.R[rd] == 0)
-	g.SetCPSRFlag(flagN, util.Bit(g.R[rd], 31))
+	g.armLogicSet(uint32(rd), true, g.R[rd], false)
 }
 
 func (g *GBA) thumbAddSub(inst uint16) {
@@ -211,22 +209,12 @@ func (g *GBA) thumbALU(inst uint16) {
 	}
 }
 
-func (g *GBA) thumbHiRegisterBXOperand(r uint16) uint32 {
-	if r == 15 {
-		return g.inst.loc + 4
-	}
-	return g.R[r]
-}
-
 func (g *GBA) thumbHiRegisterBX(inst uint16) {
-	rs, rd := (inst>>3)&0b111, inst&0b111
+	rs, rd := (inst>>3)&0b1111, inst&0b111
 	if util.Bit(inst, 7) {
 		rd += 8
 	}
-	if util.Bit(inst, 6) {
-		rs += 8
-	}
-	rsval, rdval := g.thumbHiRegisterBXOperand(rs), g.thumbHiRegisterBXOperand(rd)
+	rsval, rdval := g.R[rs], g.R[rd]
 
 	opcode := (inst >> 8) & 0b11
 	switch opcode {
@@ -457,15 +445,13 @@ func (g *GBA) thumbSWI(inst uint16) {
 }
 
 func (g *GBA) thumbB(inst uint16) {
-	nn := int32(inst)
-	nn = (nn << 21) >> 20
+	nn := (int32(inst) << 21) >> 20
 	g.R[15] = util.AddInt32(g.inst.loc+4, nn)
 	g.pipelining()
 }
 
 func (g *GBA) thumbLinkBranch1(inst uint16) {
-	nn := int32(inst)
-	nn = (nn << 21) >> 9
+	nn := (int32(inst) << 21) >> 9
 	g.R[14] = g.inst.loc + 4
 	g.R[14] = util.AddInt32(g.R[14], nn)
 }

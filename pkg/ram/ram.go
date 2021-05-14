@@ -111,3 +111,7 @@ func (r *RAM) Set8(addr uint32, b byte) {
 		r.SRAM[SRAMOffset(addr)] = b
 	}
 }
+
+var busWidthMap = map[uint32]int{0x0: 32, 0x3: 32, 0x4: 32, 0x7: 32, 0x2: 16, 0x5: 16, 0x6: 16, 0x8: 16, 0x9: 16, 0xa: 16, 0xb: 16, 0xc: 16, 0xd: 16, 0xe: 8, 0xf: 8}
+
+func BusWidth(addr uint32) int { return busWidthMap[addr>>24] }
