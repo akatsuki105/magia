@@ -190,12 +190,10 @@ func armDecodeMSR(inst uint32) string {
 		psr += "f"
 	}
 
-	if util.Bit(inst, 25) {
-		// register Psr[field] = Imm
+	if util.Bit(inst, 25) { // register Psr[field] = Imm
 		is, imm := ((inst>>8)&0b1111)*2, inst&0b1111_1111
 		return fmt.Sprintf("msr %s,#%xror#%d", psr, imm, is)
-	} else {
-		// immediate Psr[field] = Rm
+	} else { // immediate Psr[field] = Rm
 		rm := inst & 0b1111
 		return fmt.Sprintf("msr %s,r%d", psr, rm)
 	}
