@@ -45,11 +45,6 @@ func New(src []byte) *RAM {
 	}
 }
 
-type GamePak struct {
-	GamePak0, GamePak1, GamePak2 [32 * mb]byte
-	SRAM                         [64 * kb]byte
-}
-
 func (r *RAM) Get(addr uint32) uint32 {
 	switch {
 	case BIOS(addr):
@@ -80,8 +75,7 @@ func (r *RAM) Get(addr uint32) uint32 {
 		offset := GamePak2Offset(addr)
 		return util.LE32(r.GamePak0[offset:])
 	case SRAM(addr):
-		offset := SRAMOffset(addr)
-		return util.LE32(r.SRAM[offset:])
+		return uint32(r.FlashRead(addr))
 	}
 	return 0
 }
@@ -108,7 +102,7 @@ func (r *RAM) Set8(addr uint32, b byte) {
 	case GamePak2(addr):
 		return
 	case SRAM(addr):
-		r.SRAM[SRAMOffset(addr)] = b
+		r.FlashWrite(addr, b)
 	}
 }
 

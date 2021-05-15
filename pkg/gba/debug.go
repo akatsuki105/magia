@@ -77,76 +77,23 @@ func (g *GBA) printInst(inst uint32) {
 
 func (g *GBA) printIRQExceptions() {
 	flag := uint16(g._getRAM(ram.IE)) & uint16(g._getRAM(ram.IF))
-	switch {
-	case util.Bit(flag, int(irqVBlank)):
-		fmt.Println("exception occurred: IRQ VBlank")
-	case util.Bit(flag, int(irqHBlank)):
-		fmt.Println("exception occurred: IRQ HBlank")
-	case util.Bit(flag, int(irqVCount)):
-		fmt.Println("exception occurred: IRQ VCount")
-	case util.Bit(flag, int(irqTimer0)):
-		fmt.Println("exception occurred: IRQ Timer0")
-	case util.Bit(flag, int(irqTimer1)):
-		fmt.Println("exception occurred: IRQ Timer1")
-	case util.Bit(flag, int(irqTimer2)):
-		fmt.Println("exception occurred: IRQ Timer2")
-	case util.Bit(flag, int(irqTimer3)):
-		fmt.Println("exception occurred: IRQ Timer3")
-	case util.Bit(flag, int(irqSerial)):
-		fmt.Println("exception occurred: IRQ Serial")
-	case util.Bit(flag, int(irqDMA0)):
-		fmt.Println("exception occurred: IRQ DMA0")
-	case util.Bit(flag, int(irqDMA1)):
-		fmt.Println("exception occurred: IRQ DMA1")
-	case util.Bit(flag, int(irqDMA2)):
-		fmt.Println("exception occurred: IRQ DMA2")
-	case util.Bit(flag, int(irqDMA3)):
-		fmt.Println("exception occurred: IRQ DMA3")
-	case util.Bit(flag, int(irqKEY)):
-		fmt.Println("exception occurred: IRQ KEY")
-	case util.Bit(flag, int(irqGamePak)):
-		fmt.Println("exception occurred: IRQ GamePak")
+	for b := 0; b < 13; b++ {
+		if util.Bit(flag, b) {
+			fmt.Printf("exception occurred: IRQ %s\n", IRQID(b))
+		}
 	}
 }
 
 func outputCPSRFlag(r Reg) string {
 	n, z, c, v, i, f, t := r.GetCPSRFlag(flagN), r.GetCPSRFlag(flagZ), r.GetCPSRFlag(flagC), r.GetCPSRFlag(flagV), r.GetCPSRFlag(flagI), r.GetCPSRFlag(flagF), r.GetCPSRFlag(flagT)
 	result := "["
-	if n {
-		result += "N"
-	} else {
-		result += "-"
-	}
-	if z {
-		result += "Z"
-	} else {
-		result += "-"
-	}
-	if c {
-		result += "C"
-	} else {
-		result += "-"
-	}
-	if v {
-		result += "V"
-	} else {
-		result += "-"
-	}
-	if i {
-		result += "I"
-	} else {
-		result += "-"
-	}
-	if f {
-		result += "F"
-	} else {
-		result += "-"
-	}
-	if t {
-		result += "T"
-	} else {
-		result += "-"
-	}
+	result += map[bool]string{true: "N", false: "-"}[n]
+	result += map[bool]string{true: "Z", false: "-"}[z]
+	result += map[bool]string{true: "C", false: "-"}[c]
+	result += map[bool]string{true: "V", false: "-"}[v]
+	result += map[bool]string{true: "I", false: "-"}[i]
+	result += map[bool]string{true: "F", false: "-"}[f]
+	result += map[bool]string{true: "T", false: "-"}[t]
 	return result + "]"
 }
 
@@ -178,31 +125,27 @@ func printRegister(r Reg) {
 }
 
 func (g *GBA) printSWI(nn byte) {
-	state := "ARM"
-	if g.GetCPSRFlag(flagT) {
-		state = "THUMB"
-	}
-
+	mode := map[bool]string{true: "THUMB", false: "ARM"}[g.Reg.GetCPSRFlag(flagT)]
 	switch nn {
 	case 0x05:
-		// fmt.Printf("%s.VBlankIntrWait() in 0x%08x\n", state, g.inst.loc)
+		// fmt.Printf("%s.VBlankIntrWait() in 0x%08x\n", mode, g.inst.loc)
 	case 0x06:
-		fmt.Printf("%s.Div(0x%x, 0x%x, 0x%x) in 0x%08x\n", state, g.R[0], g.R[1], g.R[3], g.inst.loc)
+		fmt.Printf("%s.Div(0x%x, 0x%x, 0x%x) in 0x%08x\n", mode, g.R[0], g.R[1], g.R[3], g.inst.loc)
 	case 0x07:
-		fmt.Printf("%s.DivArm(0x%x, 0x%x, 0x%x) in 0x%08x\n", state, g.R[0], g.R[1], g.R[3], g.inst.loc)
+		fmt.Printf("%s.DivArm(0x%x, 0x%x, 0x%x) in 0x%08x\n", mode, g.R[0], g.R[1], g.R[3], g.inst.loc)
 	case 0x08:
-		fmt.Printf("%s.Sqrt(0x%x) in 0x%08x\n", state, g.R[0], g.inst.loc)
+		fmt.Printf("%s.Sqrt(0x%x) in 0x%08x\n", mode, g.R[0], g.inst.loc)
 	case 0x0b:
-		// fmt.Printf("%s.CPUSet(0x%x, 0x%x, 0x%x) in 0x%08x\n", state, g.R[0], g.R[1], g.R[2], g.inst.loc)
-		fmt.Printf("%s.%s\n", state, g.outputCPUSet())
+		// fmt.Printf("%s.CPUSet(0x%x, 0x%x, 0x%x) in 0x%08x\n", mode, g.R[0], g.R[1], g.R[2], g.inst.loc)
+		fmt.Printf("%s.%s\n", mode, g.outputCPUSet())
 	case 0x0c:
-		fmt.Printf("%s.CPUFastSet(0x%x, 0x%x, 0x%x) in 0x%08x\n", state, g.R[0], g.R[1], g.R[2], g.inst.loc)
+		fmt.Printf("%s.CPUFastSet(0x%x, 0x%x, 0x%x) in 0x%08x\n", mode, g.R[0], g.R[1], g.R[2], g.inst.loc)
 	case 0x0e:
-		fmt.Printf("%s.BgAffineSet(0x%x, 0x%x, 0x%x) in 0x%08x\n", state, g.R[0], g.R[1], g.R[2], g.inst.loc)
+		fmt.Printf("%s.BgAffineSet(0x%x, 0x%x, 0x%x) in 0x%08x\n", mode, g.R[0], g.R[1], g.R[2], g.inst.loc)
 	case 0x0f:
-		fmt.Printf("%s.ObjAffineSet(0x%x, 0x%x, 0x%x, 0x%x) in 0x%08x\n", state, g.R[0], g.R[1], g.R[2], g.R[3], g.inst.loc)
+		fmt.Printf("%s.ObjAffineSet(0x%x, 0x%x, 0x%x, 0x%x) in 0x%08x\n", mode, g.R[0], g.R[1], g.R[2], g.R[3], g.inst.loc)
 	default:
-		fmt.Printf("%s.SWI(0x%x) in 0x%08x\n", state, nn, g.inst.loc)
+		fmt.Printf("%s.SWI(0x%x) in 0x%08x\n", mode, nn, g.inst.loc)
 	}
 }
 
@@ -255,10 +198,7 @@ func (g *GBA) pushHistory() {
 		histories[i] = histories[i+1]
 	}
 
-	histories[historySize-1] = History{
-		inst: g.inst,
-		reg:  g.Reg,
-	}
+	histories[historySize-1] = History{g.inst, g.Reg}
 }
 func (g *GBA) pushIRQHistory(i IRQHistory) {
 	for i := 0; i < irqHistorySize-1; i++ {
@@ -284,10 +224,7 @@ var irq2str = map[IRQID]string{irqVBlank: "Vblank", irqHBlank: "Hblank", irqVCou
 func (i IRQID) String() string { return irq2str[i] }
 
 func (ih IRQHistory) String() string {
-	mode := "ARM"
-	if ih.reg.GetCPSRFlag(flagT) {
-		mode = "THUMB"
-	}
+	mode := map[bool]string{true: "THUMB", false: "ARM"}[ih.reg.GetCPSRFlag(flagT)]
 	return fmt.Sprintf("IRQ(%s): 0x%08x -> 0x%08x on %s", ih.irq, ih.start, ih.returnTo, mode)
 }
 

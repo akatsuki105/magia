@@ -149,7 +149,11 @@ func (e *Emulator) SetupCloseHandler() {
 
 func (e *Emulator) writeSav() {
 	path := strings.ReplaceAll(e.rom, ".gba", ".sav")
-	os.WriteFile(path, e.gba.RAM.SRAM[:], os.ModePerm)
+	if e.gba.RAM.HasFlash {
+		os.WriteFile(path, e.gba.RAM.Flash[:], os.ModePerm)
+	} else {
+		os.WriteFile(path, e.gba.RAM.SRAM[:], os.ModePerm)
+	}
 	e.gba.DoSav = false
 }
 
