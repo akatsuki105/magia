@@ -335,7 +335,10 @@ func (g *GBA) LoadSav(bs []byte) {
 		return
 	}
 	for i, b := range bs {
-		g.RAM.FlashWrite(uint32(i), b)
+		if i < 65536 {
+			g.RAM.SRAM[i] = b
+		}
+		g.RAM.Flash[i] = b
 	}
 }
 
