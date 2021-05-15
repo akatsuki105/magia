@@ -47,7 +47,7 @@ func New(src []byte) *RAM {
 
 type GamePak struct {
 	GamePak0, GamePak1, GamePak2 [32 * mb]byte
-	SRAM                         [64 * kb]byte
+	SRAM                         [128 * kb]byte
 }
 
 func (r *RAM) Get(addr uint32) uint32 {
@@ -108,7 +108,7 @@ func (r *RAM) Set8(addr uint32, b byte) {
 	case GamePak2(addr):
 		return
 	case SRAM(addr):
-		r.SRAM[SRAMOffset(addr)] = b
+		r.FlashWrite(SRAMOffset(addr), b)
 	}
 }
 

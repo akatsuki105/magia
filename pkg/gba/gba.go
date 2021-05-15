@@ -331,11 +331,11 @@ ROM size: %s`
 }
 
 func (g *GBA) LoadSav(bs []byte) {
-	if len(bs) > 65536 {
+	if len(bs) > 65536*2 {
 		return
 	}
 	for i, b := range bs {
-		g.RAM.SRAM[i] = b
+		g.RAM.FlashWrite(uint32(i), b)
 	}
 }
 
