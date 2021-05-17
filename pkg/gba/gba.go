@@ -70,7 +70,7 @@ type Inst struct {
 }
 
 // New GBA
-func New(src []byte, isDebug bool) *GBA {
+func New(src []byte, isDebug bool, mute bool) *GBA {
 	debug = isDebug
 	g := &GBA{
 		Reg:        *NewReg(),
@@ -82,7 +82,9 @@ func New(src []byte, isDebug bool) *GBA {
 		timers:     newTimers(),
 	}
 	g._setRAM(ram.KEYINPUT, uint32(0x3ff), 2)
-	g.apu.play()
+	if !mute {
+		g.apu.play()
+	}
 	return g
 }
 
@@ -95,6 +97,9 @@ func (g *GBA) Exit(s string) {
 	os.Exit(0)
 }
 
+var inExec = false
+var accumulatedCycles = 0
+
 func (g *GBA) exec(cycles int) {
 	if g.halt {
 		tmp := g.cycle
@@ -104,9 +109,14 @@ func (g *GBA) exec(cycles int) {
 	}
 
 	for g.cycle < cycles {
+		inExec = true
 		g.step()
+		inExec = false
 		if g.halt {
 			g.timer(cycles - g.cycle)
+		} else {
+			g.timer(accumulatedCycles)
+			accumulatedCycles = 0
 		}
 	}
 	g.cycle -= cycles

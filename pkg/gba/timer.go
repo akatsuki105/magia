@@ -81,6 +81,14 @@ func (g *GBA) waitBus(addr uint32, size int, s bool) int {
 }
 
 func (g *GBA) timer(c int) {
+	if inExec {
+		accumulatedCycles += c
+		return
+	}
+	if c == 0 {
+		return
+	}
+
 	g.cycle += c
 	if timerEnable == 0 {
 		return

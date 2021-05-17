@@ -29,7 +29,7 @@ func (g *GPU) drawTextBG(screen *image.RGBA, idx int) {
 	xTiles, yTiles := 32*x[0], 32*x[1]
 	for yTile := uint32(0); yTile < yTiles; yTile++ {
 		for xTile := uint32(0); xTile < xTiles; xTile++ {
-			mapIdx := yTile*yTiles + xTile
+			mapIdx := yTile*xTiles + xTile
 			mapData := util.LE16(g.VRAM[(mapBlock + 2*(mapIdx)):])
 			tileIdx, paletteIdx, flipX, flipY := uint32(mapData&0b0011_1111_1111), int((mapData>>12)&0b1111), util.Bit(mapData, 10), util.Bit(mapData, 11)
 			if colorMode == color16 {
