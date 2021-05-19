@@ -3,12 +3,13 @@ package gba
 import (
 	"fmt"
 	"image"
-	"magia/pkg/cart"
-	"magia/pkg/gpu"
-	"magia/pkg/joypad"
-	"magia/pkg/ram"
-	"magia/pkg/util"
 	"os"
+
+	"github.com/pokemium/magia/pkg/cart"
+	"github.com/pokemium/magia/pkg/gpu"
+	"github.com/pokemium/magia/pkg/joypad"
+	"github.com/pokemium/magia/pkg/ram"
+	"github.com/pokemium/magia/pkg/util"
 )
 
 const (

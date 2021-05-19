@@ -1,8 +1,8 @@
 package gba
 
 import (
-	"magia/pkg/ram"
-	"magia/pkg/util"
+	"github.com/pokemium/magia/pkg/ram"
+	"github.com/pokemium/magia/pkg/util"
 )
 
 const (

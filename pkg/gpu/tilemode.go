@@ -2,7 +2,8 @@ package gpu
 
 import (
 	"image"
-	"magia/pkg/util"
+
+	"github.com/pokemium/magia/pkg/util"
 )
 
 func (g *GPU) drawTextBG(screen *image.RGBA, idx int) {

@@ -1,7 +1,7 @@
 package gba
 
 import (
-	"magia/pkg/util"
+	"github.com/pokemium/magia/pkg/util"
 )
 
 func (g *GBA) armLSL(val uint32, is uint32, carryMut bool, imm bool) uint32 {

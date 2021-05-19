@@ -2,11 +2,12 @@ package gba
 
 import (
 	"fmt"
-	"magia/pkg/gpu"
-	"magia/pkg/ram"
-	"magia/pkg/util"
 	"os"
 	"runtime"
+
+	"github.com/pokemium/magia/pkg/gpu"
+	"github.com/pokemium/magia/pkg/ram"
+	"github.com/pokemium/magia/pkg/util"
 )
 
 const (

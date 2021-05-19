@@ -1,4 +1,4 @@
-module magia
+module github.com/pokemium/magia
 
 go 1.16
 

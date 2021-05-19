@@ -2,7 +2,8 @@ package gba
 
 import (
 	"fmt"
-	"magia/pkg/util"
+
+	"github.com/pokemium/magia/pkg/util"
 )
 
 const (

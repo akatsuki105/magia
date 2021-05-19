@@ -1,7 +1,7 @@
 package gba
 
 import (
-	"magia/pkg/util"
+	"github.com/pokemium/magia/pkg/util"
 )
 
 type dmaTiming uint32

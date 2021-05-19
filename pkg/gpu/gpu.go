@@ -1,7 +1,7 @@
 package gpu
 
 import (
-	"magia/pkg/util"
+	"github.com/pokemium/magia/pkg/util"
 )
 
 // IO offset

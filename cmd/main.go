@@ -4,12 +4,13 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"magia/pkg/gba"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/pokemium/magia/pkg/gba"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )

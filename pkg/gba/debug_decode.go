@@ -2,8 +2,9 @@ package gba
 
 import (
 	"fmt"
-	"magia/pkg/util"
 	"strings"
+
+	"github.com/pokemium/magia/pkg/util"
 )
 
 func armDecode(pc, inst uint32) string {

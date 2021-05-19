@@ -2,7 +2,8 @@ package gpu
 
 import (
 	"fmt"
-	"magia/pkg/util"
+
+	"github.com/pokemium/magia/pkg/util"
 )
 
 func (g *GPU) PrintBGMap(bg int) {

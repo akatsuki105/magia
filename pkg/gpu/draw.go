@@ -3,7 +3,8 @@ package gpu
 import (
 	"image"
 	"image/color"
-	"magia/pkg/util"
+
+	"github.com/pokemium/magia/pkg/util"
 
 	"github.com/anthonynsimon/bild/blend"
 )

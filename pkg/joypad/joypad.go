@@ -1,7 +1,7 @@
 package joypad
 
 import (
-	"magia/pkg/util"
+	"github.com/pokemium/magia/pkg/util"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )

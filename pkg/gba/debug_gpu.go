@@ -2,7 +2,8 @@ package gba
 
 import (
 	"fmt"
-	"magia/pkg/ram"
+
+	"github.com/pokemium/magia/pkg/ram"
 )
 
 func (g *GBA) printBGMap(bg int) { g.GPU.PrintBGMap(bg) }

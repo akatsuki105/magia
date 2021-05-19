@@ -1,10 +1,11 @@
 package gba
 
 import (
-	"magia/pkg/ram"
-	"magia/pkg/util"
 	"math"
 	"time"
+
+	"github.com/pokemium/magia/pkg/ram"
+	"github.com/pokemium/magia/pkg/util"
 
 	"github.com/hajimehoshi/oto"
 )
