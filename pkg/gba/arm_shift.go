@@ -34,10 +34,7 @@ func (g *GBA) armLSR(val uint32, is uint32, carryMut bool, imm bool) uint32 {
 }
 
 func (g *GBA) armASR(val uint32, is uint32, carryMut bool, imm bool) uint32 {
-	if is == 0 && imm {
-		is = 32
-	}
-	if is > 32 {
+	if (is == 0 && imm) || is > 32 {
 		is = 32
 	}
 	carry := val&(1<<(is-1)) > 0

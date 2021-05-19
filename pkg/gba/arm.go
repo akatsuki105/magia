@@ -435,7 +435,7 @@ func (g *GBA) armALU(inst uint32) {
 	}
 }
 
-func (g *GBA) armALUChangeOSMode(flush bool) {
+func (g *GBA) armALUChangePrivMode(flush bool) {
 	g.restorePrivMode()
 	if flush {
 		g.pipelining()
@@ -447,7 +447,7 @@ func (g *GBA) armALUChangeOSMode(flush bool) {
 func (g *GBA) armLogicSet(rd uint32, s bool, res uint32, isTstTeq bool) {
 	if rd == 15 {
 		if s {
-			g.armALUChangeOSMode(!isTstTeq)
+			g.armALUChangePrivMode(!isTstTeq)
 		} else if !isTstTeq {
 			g.pipelining()
 		}
@@ -460,7 +460,7 @@ func (g *GBA) armLogicSet(rd uint32, s bool, res uint32, isTstTeq bool) {
 func (g *GBA) armArithAddSet(rd uint32, s bool, lhs, rhs uint32, res uint64, isCmn bool) {
 	if rd == 15 {
 		if s {
-			g.armALUChangeOSMode(!isCmn)
+			g.armALUChangePrivMode(!isCmn)
 		} else if !isCmn {
 			g.pipelining()
 		}
@@ -475,7 +475,7 @@ func (g *GBA) armArithAddSet(rd uint32, s bool, lhs, rhs uint32, res uint64, isC
 func (g *GBA) armArithSubSet(rd uint32, s bool, lhs, rhs uint32, res uint64, isCmp bool) {
 	if rd == 15 {
 		if s {
-			g.armALUChangeOSMode(!isCmp)
+			g.armALUChangePrivMode(!isCmp)
 		} else if !isCmp {
 			g.pipelining()
 		}

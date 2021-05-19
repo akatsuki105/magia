@@ -76,13 +76,8 @@ func (ch *DMA) srcCnt() int64 {
 		return 0
 	}
 }
-func (ch *DMA) repeat() bool { return util.Bit(ch.cnt(), 16+9) }
-func (ch *DMA) size() int {
-	if util.Bit(ch.cnt(), 16+10) {
-		return 32
-	}
-	return 16
-}
+func (ch *DMA) repeat() bool      { return util.Bit(ch.cnt(), 16+9) }
+func (ch *DMA) size() int         { return map[bool]int{true: 32, false: 16}[util.Bit(ch.cnt(), 16+10)] }
 func (ch *DMA) timing() dmaTiming { return dmaTiming((ch.cnt() >> (16 + 12)) & 0b11) }
 func (ch *DMA) irq() bool         { return util.Bit(ch.cnt(), 16+14) }
 func (ch *DMA) enabled() bool     { return util.Bit(ch.cnt(), 16+15) }

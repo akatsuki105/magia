@@ -20,7 +20,6 @@ func (g *GBA) thumbStep() {
 }
 
 func (g *GBA) thumbExec(inst uint16) {
-	// g.thumbInst(inst)
 	switch {
 	case isThumbShift(inst):
 		g.thumbShift(inst)

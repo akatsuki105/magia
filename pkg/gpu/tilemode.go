@@ -7,17 +7,13 @@ import (
 
 func (g *GPU) drawTextBG(screen *image.RGBA, idx int) {
 	bgCnt := util.LE16(g.IO[BG0CNT+2*idx:])
-	x := [2]uint32{1, 1}
 	width, height := 256, 256
 	switch (bgCnt >> 14) & 0b11 {
 	case 1:
-		x[0] = 2
 		width, height = 512, 256
 	case 2:
-		x[1] = 2
 		width, height = 256, 512
 	case 3:
-		x[0], x[1] = 2, 2
 		width, height = 512, 512
 	}
 
@@ -26,7 +22,7 @@ func (g *GPU) drawTextBG(screen *image.RGBA, idx int) {
 	mask := uint16(0b0000_0001_1111_1111)
 	scrollX, scrollY := int(util.LE16(g.IO[BG0HOFS+idx*4:])&mask), int(util.LE16(g.IO[BG0VOFS+idx*4:])&mask)
 	win0Enable, win1Enable, objWinEnable := util.Bit(g.IO[DISPCNT+1], 5), util.Bit(g.IO[DISPCNT+1], 6), util.Bit(g.IO[DISPCNT+1], 7)
-	xTiles, yTiles := 32*x[0], 32*x[1]
+	xTiles, yTiles := uint32(32*(width/256)), uint32(32*(height/256))
 	for yTile := uint32(0); yTile < yTiles; yTile++ {
 		for xTile := uint32(0); xTile < xTiles; xTile++ {
 			mapIdx := yTile*xTiles + xTile
@@ -40,8 +36,7 @@ func (g *GPU) drawTextBG(screen *image.RGBA, idx int) {
 
 						xCoord0, xCoord1, yCoord := int(xTile*8+x), int(xTile*8+x+1), int(yTile*8+y)
 						if flipX {
-							xCoord0 = int(xTile*8 + (7 - x))
-							xCoord1 = int(xTile*8 + (7 - x - 1))
+							xCoord0, xCoord1 = int(xTile*8+(7-x)), int(xTile*8+(7-x-1))
 						}
 						if flipY {
 							yCoord = int(yTile*8 + (7 - y))

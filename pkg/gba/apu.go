@@ -72,9 +72,7 @@ func newAPU() *APU {
 	}
 }
 
-func (a *APU) exit() {
-	a.context.Close()
-}
+func (a *APU) exit() { a.context.Close() }
 
 func (a *APU) play() {
 	a.enable = true

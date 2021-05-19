@@ -52,26 +52,10 @@ func (g *GBA) breakpoint() {
 	// }
 }
 
-func (g *GBA) thumbInst(inst uint16) {
-	if inst != 0 {
-		fmt.Printf("Thumb pc, inst, cycle: 0x%04x, 0x%02x, %d:%d\n", g.inst.loc, inst, g.GPU.IO[gpu.VCOUNT], g.cycle)
-	}
-}
-
-func (g *GBA) armInst(inst uint32) {
-	if inst != 0 {
-		fmt.Printf("ARM pc, inst, cycle: 0x%04x, 0x%04x, %d:%d\n", g.inst.loc, inst, g.GPU.IO[gpu.VCOUNT], g.cycle)
-	}
-}
-
 func (g *GBA) printInst(inst uint32) {
 	if inst != 0 {
-		t := g.GetCPSRFlag(flagT)
-		if t {
-			fmt.Printf("Thumb pc, inst, cycle: 0x%04x, 0x%02x, %d:%d\n", g.inst.loc, inst, g.GPU.IO[gpu.VCOUNT], g.cycle)
-			return
-		}
-		fmt.Printf("ARM pc, inst, cycle: 0x%04x, 0x%04x, %d:%d\n", g.inst.loc, inst, g.GPU.IO[gpu.VCOUNT], g.cycle)
+		mode := map[bool]string{true: "THUMB", false: "ARM"}[g.Reg.GetCPSRFlag(flagT)]
+		fmt.Printf("%s pc, inst, cycle: 0x%04x, 0x%04x, %d:%d\n", mode, g.inst.loc, inst, g.GPU.IO[gpu.VCOUNT], g.cycle)
 	}
 }
 

@@ -28,29 +28,14 @@ func set(i *image.RGBA, x int, y int, c color.Color) {
 	i.Set(x, y, c)
 }
 
-// Draw screen
+var draws = [6](func(g *GPU) *image.RGBA){draw0, draw1, draw2, draw3, draw4, draw5}
+
 func (g *GPU) Draw() *image.RGBA {
 	mode := g.IO[DISPCNT] & 0b111
-	switch mode {
-	case 0:
-		return g.draw0()
-	case 1:
-		return g.draw1()
-	case 2:
-		return g.draw2()
-	case 3:
-		return g.draw3()
-	case 4:
-		return g.draw4()
-	case 5:
-		return g.draw5()
-	}
-
-	result := image.NewRGBA(image.Rect(0, 0, 240, 160))
-	return result
+	return (draws[mode])(g)
 }
 
-func (g *GPU) draw0() *image.RGBA {
+func draw0(g *GPU) *image.RGBA {
 	result := image.NewRGBA(image.Rect(0, 0, 240, 160))
 	util.FillImage(result, g.bgColor())
 	dispcnt := util.LE16(g.IO[DISPCNT:])
@@ -75,7 +60,7 @@ func (g *GPU) draw0() *image.RGBA {
 	return result
 }
 
-func (g *GPU) draw1() *image.RGBA {
+func draw1(g *GPU) *image.RGBA {
 	result := image.NewRGBA(image.Rect(0, 0, 240, 160))
 	util.FillImage(result, g.bgColor())
 	dispcnt := util.LE16(g.IO[DISPCNT:])
@@ -102,7 +87,7 @@ func (g *GPU) draw1() *image.RGBA {
 	return result
 }
 
-func (g *GPU) draw2() *image.RGBA {
+func draw2(g *GPU) *image.RGBA {
 	result := image.NewRGBA(image.Rect(0, 0, 240, 160))
 	util.FillImage(result, g.bgColor())
 	dispcnt := util.LE16(g.IO[DISPCNT:])
@@ -148,7 +133,7 @@ func (g *GPU) draw2() *image.RGBA {
 	return result
 }
 
-func (g *GPU) draw3() *image.RGBA {
+func draw3(g *GPU) *image.RGBA {
 	result := image.NewRGBA(image.Rect(0, 0, 240, 160))
 	util.FillImage(result, g.bgColor())
 
@@ -164,7 +149,7 @@ func (g *GPU) draw3() *image.RGBA {
 	return result
 }
 
-func (g *GPU) draw4() *image.RGBA {
+func draw4(g *GPU) *image.RGBA {
 	frame1 := util.Bit(g.IO[DISPCNT], 4)
 	frameBuffer := g.VRAM[:0xa000]
 	if frame1 {
@@ -182,7 +167,7 @@ func (g *GPU) draw4() *image.RGBA {
 	return result
 }
 
-func (g *GPU) draw5() *image.RGBA {
+func draw5(g *GPU) *image.RGBA {
 	panic("unsupported BG mode 5")
 	result := image.NewRGBA(image.Rect(0, 0, 240, 160))
 	return result
