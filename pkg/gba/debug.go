@@ -5,7 +5,6 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/pokemium/magia/pkg/gpu"
 	"github.com/pokemium/magia/pkg/ram"
 	"github.com/pokemium/magia/pkg/util"
 )
@@ -45,8 +44,6 @@ func (g *GBA) breakpoint() {
 	fmt.Printf("Breakpoint: 0x%04x\n", g.inst.loc)
 	printRegister(g.Reg)
 	printPSR(g.Reg)
-	g.printLCD()
-
 	counter++
 	// if counter == 1 {
 	// 	g.Exit("")
@@ -56,7 +53,7 @@ func (g *GBA) breakpoint() {
 func (g *GBA) printInst(inst uint32) {
 	if inst != 0 {
 		mode := map[bool]string{true: "THUMB", false: "ARM"}[g.Reg.GetCPSRFlag(flagT)]
-		fmt.Printf("%s pc, inst, cycle: 0x%04x, 0x%04x, %d:%d\n", mode, g.inst.loc, inst, g.GPU.IO[gpu.VCOUNT], g.cycle)
+		fmt.Printf("%s pc, inst, cycle: 0x%04x, 0x%04x, %d:%d\n", mode, g.inst.loc, inst, g.video.RenderPath.Vcount, g.cycle)
 	}
 }
 

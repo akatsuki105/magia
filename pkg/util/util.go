@@ -62,6 +62,30 @@ func BoolToInt(b bool) int {
 	return 0
 }
 
+// BoolToU8 converts boolean to byte
+func BoolToU8(b bool) byte {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// BoolToU32 converts boolean to uint32
+func BoolToU32(b bool) uint32 {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+// BoolToU32 converts boolean to uint16
+func BoolToU16(b bool) uint16 {
+	if b {
+		return 1
+	}
+	return 0
+}
+
 // Bit check val's idx bit
 func Bit(val interface{}, idx int) bool {
 	switch val := val.(type) {

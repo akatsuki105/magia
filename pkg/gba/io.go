@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pokemium/magia/pkg/gpu"
 	"github.com/pokemium/magia/pkg/ram"
 	"github.com/pokemium/magia/pkg/util"
 )
@@ -13,8 +12,8 @@ var lastBios uint32 = 0xE129F000
 
 func (g *GBA) _getRAM(addr uint32) uint32 {
 	switch {
-	case gpu.IsIO(addr):
-		return util.LE32(g.GPU.IO[(addr - 0x0400_0000):])
+	case (addr >= 0x0400_0000) && (addr < 0x0400_0000+0x60):
+		return g.video.Load32(addr)
 	case g.in(addr, ram.WAVE_RAM, ram.WAVE_RAM+0xf):
 		bank := (g._getRAM(ram.SOUND3CNT_L) >> 2) & 0x10
 		idx := (bank ^ 0x10) | (addr & 0xf)
@@ -32,14 +31,13 @@ func (g *GBA) _getRAM(addr uint32) uint32 {
 	case addr == ram.KEYINPUT || addr == ram.KEYINPUT+1:
 		return util.LE32(g.joypad.Input[addr-ram.KEYINPUT:])
 	case ram.Palette(addr):
-		offset := ram.PaletteOffset(addr)
-		return util.LE32(g.GPU.Palette[offset:])
+		return g.video.RenderPath.Palette.Load32(addr)
 	case ram.VRAM(addr):
 		offset := ram.VRAMOffset(addr)
-		return util.LE32(g.GPU.VRAM[offset:])
+		return g.video.RenderPath.VRAM.LoadU32(offset)
 	case ram.OAM(addr):
 		offset := ram.OAMOffset(addr)
-		return util.LE32(g.GPU.OAM[offset:])
+		return g.video.RenderPath.OAM.LoadU32(offset)
 	default:
 		value := g.RAM.Get(addr)
 		if ram.BIOS(addr) {
@@ -101,9 +99,14 @@ func (g *GBA) _setRAM(addr uint32, val uint32, width int) {
 	}()
 
 	switch {
-	case gpu.IsIO(addr):
-		for i := uint32(0); i < uint32(width); i++ {
-			g.GPU.SetIO(addr+i, byte(val>>(8*i)))
+	case (addr >= 0x0400_0000) && (addr < 0x0400_0000+0x60):
+		switch width {
+		case 1:
+			g.video.Set8(addr, byte(val))
+		case 2:
+			g.video.Set16(addr, uint16(val))
+		case 4:
+			g.video.Set32(addr, val)
 		}
 	case g.in(addr, ram.SOUND1CNT_L, ram.SOUNDCNT_L+1): // sound io
 		if util.Bit(byte(g._getRAM(ram.SOUNDCNT_X)), 7) {
@@ -188,25 +191,28 @@ func (g *GBA) _setRAM(addr uint32, val uint32, width int) {
 	case addr == ram.HALTCNT:
 		g.halt = true
 	case ram.Palette(addr):
-		if width == 1 {
-			return
-		}
-		for i := uint32(0); i < uint32(width); i++ {
-			g.GPU.Palette[ram.PaletteOffset(addr+i)] = byte(val >> (8 * i))
+		ofs := ram.PaletteOffset(addr)
+		switch width {
+		case 2:
+			g.video.RenderPath.Palette.Store16(ofs, uint16(val))
+		case 4:
+			g.video.RenderPath.Palette.Store32(ofs, val)
 		}
 	case ram.VRAM(addr):
-		if width == 1 {
-			return
-		}
-		for i := uint32(0); i < uint32(width); i++ {
-			g.GPU.VRAM[ram.VRAMOffset(addr+i)] = byte(val >> (8 * i))
+		ofs := ram.VRAMOffset(addr)
+		switch width {
+		case 2:
+			g.video.RenderPath.VRAM.Store16(ofs, uint16(val))
+		case 4:
+			g.video.RenderPath.VRAM.Store32(ofs, val)
 		}
 	case ram.OAM(addr):
-		if width == 1 {
-			return
-		}
-		for i := uint32(0); i < uint32(width); i++ {
-			g.GPU.OAM[ram.OAMOffset(addr+i)] = byte(val >> (8 * i))
+		ofs := ram.OAMOffset(addr)
+		switch width {
+		case 2:
+			g.video.RenderPath.OAM.Store16(ofs, uint16(val))
+		case 4:
+			g.video.RenderPath.OAM.Store32(ofs, val)
 		}
 	default:
 		for i := uint32(0); i < uint32(width); i++ {

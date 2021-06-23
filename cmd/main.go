@@ -132,7 +132,7 @@ func (e *Emulator) Update() error {
 
 func (e *Emulator) Draw(screen *ebiten.Image) {
 	defer e.gba.PanicHandler("gpu", true)
-	screen.ReplacePixels(e.gba.Draw().Pix)
+	screen.ReplacePixels(e.gba.Draw())
 }
 
 func (e *Emulator) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {

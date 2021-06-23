@@ -2,14 +2,13 @@ package gba
 
 import (
 	"fmt"
-	"image"
 	"os"
 
 	"github.com/pokemium/magia/pkg/cart"
-	"github.com/pokemium/magia/pkg/gpu"
 	"github.com/pokemium/magia/pkg/joypad"
 	"github.com/pokemium/magia/pkg/ram"
 	"github.com/pokemium/magia/pkg/util"
+	"github.com/pokemium/magia/pkg/video"
 )
 
 const (
@@ -45,7 +44,7 @@ const (
 // GBA is core object
 type GBA struct {
 	Reg
-	GPU        gpu.GPU
+	video      *video.Video
 	CartHeader *cart.Header
 	RAM        ram.RAM
 	inst       Inst
@@ -75,7 +74,7 @@ func New(src []byte, isDebug bool, mute bool) *GBA {
 	debug = isDebug
 	g := &GBA{
 		Reg:        *NewReg(),
-		GPU:        *gpu.New(),
+		video:      video.NewVideo(),
 		CartHeader: cart.New(src),
 		RAM:        *ram.New(src),
 		dma:        NewDMA(),
@@ -183,7 +182,7 @@ func (g *GBA) exception(addr uint32, mode Mode) {
 
 // Update GBA by 1 frame
 func (g *GBA) Update() {
-	g.GPU.IO[gpu.VCOUNT] = 0
+	g.video.RenderPath.Vcount = 0
 
 	// line 0~159
 	for y := 0; y < 160; y++ {
@@ -197,15 +196,17 @@ func (g *GBA) Update() {
 	}
 
 	// line 160~226
-	g.GPU.SetVBlank(true)
+	g.video.SetVBlank(true)
 	g.dmaTransfer(dmaVBlank)
 	for y := 0; y < 67; y++ {
 		g.scanline()
 	}
-	g.GPU.SetVBlank(false) // clear on 227
+	g.video.SetVBlank(false) // clear on 227
 
 	// line 227
 	g.scanline()
+
+	g.video.RenderPath.StartDraw()
 
 	if g.Frame%2 == 0 {
 		g.joypad.Read()
@@ -217,7 +218,7 @@ func (g *GBA) Update() {
 
 func (g *GBA) scanline() {
 	dispstat := uint16(g._getRAM(ram.DISPSTAT))
-	vCount, lyc := g.GPU.IO[gpu.VCOUNT], byte(g._getRAM(ram.DISPSTAT+1))
+	vCount, lyc := byte(g.video.RenderPath.Vcount), byte(g._getRAM(ram.DISPSTAT+1))
 	if vCount == lyc {
 		if util.Bit(dispstat, 5) {
 			g.triggerIRQ(irqVCount)
@@ -227,23 +228,27 @@ func (g *GBA) scanline() {
 	g.exec(1006)
 
 	// HBlank
-	if !g.GPU.VBlank() {
+	if !g.video.VBlank() {
 		if util.Bit(dispstat, 4) {
 			g.triggerIRQ(irqHBlank)
 		}
 	}
 
-	g.GPU.SetHBlank(true)
+	g.video.SetHBlank(true)
 	g.dmaTransfer(dmaHBlank)
 	g.exec(1232 - 1006)
 	g.soundClock(1232)
-	g.GPU.SetHBlank(false)
+	g.video.SetHBlank(false)
 
-	g.GPU.IO[gpu.VCOUNT]++ // increment vcount
+	vcount := g.video.RenderPath.Vcount
+	if vcount < video.VERTICAL_PIXELS {
+		g.video.RenderPath.DrawScanline(vcount)
+	}
+	g.video.RenderPath.Vcount++ // increment vcount
 }
 
 // Draw GBA screen by 1 frame
-func (g *GBA) Draw() *image.RGBA { return g.GPU.Draw() }
+func (g *GBA) Draw() []byte { return g.video.RenderPath.FinishDraw() }
 
 func (g *GBA) checkIRQ() {
 	cond1 := !g.GetCPSRFlag(flagI)
