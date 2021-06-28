@@ -1,43 +1,51 @@
-package gba
+package debug
 
 import (
 	"fmt"
 	"strings"
 
+	"github.com/pokemium/magia/pkg/gba"
 	"github.com/pokemium/magia/pkg/util"
 )
 
-func armDecode(pc, inst uint32) string {
+const (
+	lsl = iota
+	lsr
+	asr
+	ror
+)
+
+func DissasembleArm(pc, inst uint32) string {
 	switch {
-	case isArmSWI(inst):
+	case gba.IsArmSWI(inst):
 		nn := byte(inst >> 16)
 		return fmt.Sprintf("swi 0x%x", nn)
-	case isArmB(inst) || isArmBL(inst) || isArmBX(inst):
-		return armDecodeBranch(pc, inst)
-	case isArmLDM(inst) || isArmSTM(inst):
-		return armDecodeStack(inst)
-	case isArmLDR(inst) || isArmSTR(inst):
-		return armDecodeLDRSTR(inst)
-	case isArmLDRH(inst) || isArmLDRSB(inst) || isArmLDRSH(inst) || isArmSTRH(inst):
-		return armDecodeLDRSTR2(inst)
-	case isArmMRS(inst):
-		return armDecodeMRS(inst)
-	case isArmMSR(inst):
-		return armDecodeMSR(inst)
-	case isArmSWP(inst):
+	case gba.IsArmB(inst) || gba.IsArmBL(inst) || gba.IsArmBX(inst):
+		return disassembleArmBranch(pc, inst)
+	case gba.IsArmLDM(inst) || gba.IsArmSTM(inst):
+		return disassembleArmStack(inst)
+	case gba.IsArmLDR(inst) || gba.IsArmSTR(inst):
+		return disassembleArmLDRSTR(inst)
+	case gba.IsArmLDRH(inst) || gba.IsArmLDRSB(inst) || gba.IsArmLDRSH(inst) || gba.IsArmSTRH(inst):
+		return disassembleArmLDRSTR2(inst)
+	case gba.IsArmMRS(inst):
+		return disassembleArmMRS(inst)
+	case gba.IsArmMSR(inst):
+		return disassembleArmMSR(inst)
+	case gba.IsArmSWP(inst):
 		return fmt.Sprintf("SWI is unsupported in 0x%08x", pc)
-	case isArmMPY(inst):
-		return armDecodeMPY(inst)
-	case isArmALU(inst):
-		return armDecodeALU(inst)
+	case gba.IsArmMPY(inst):
+		return disassembleArmMPY(inst)
+	case gba.IsArmALU(inst):
+		return disassembleArmALU(inst)
 	default:
 		return fmt.Sprintf("invalid ARM opcode(0x%08x) in 0x%08x\n", inst, pc)
 	}
 }
 
-func armDecodeBranch(pc, inst uint32) string {
+func disassembleArmBranch(pc, inst uint32) string {
 	switch {
-	case isArmBX(inst):
+	case gba.IsArmBX(inst):
 		rn := inst & 0b1111
 		return fmt.Sprintf("bx r%d", rn)
 	case util.Bit(inst, 24):
@@ -51,7 +59,7 @@ func armDecodeBranch(pc, inst uint32) string {
 	}
 }
 
-func armDecodeStack(inst uint32) string {
+func disassembleArmStack(inst uint32) string {
 	p, u := util.Bit(inst, 24), util.Bit(inst, 23)
 	rn := inst >> 16 & 0b1111
 
@@ -85,7 +93,7 @@ func armDecodeStack(inst uint32) string {
 	return fmt.Sprintf("%s r%d%s, %s", opcode, rn, writeBack, rlist)
 }
 
-func armDecodeLDRSTR(inst uint32) string {
+func disassembleArmLDRSTR(inst uint32) string {
 	opcode := "str"
 	if util.Bit(inst, 20) {
 		opcode = "ldr"
@@ -128,7 +136,7 @@ func armDecodeLDRSTR(inst uint32) string {
 	}
 }
 
-func armDecodeLDRSTR2(inst uint32) string {
+func disassembleArmLDRSTR2(inst uint32) string {
 	opcode := "unsupported ldrstr2"
 	tmp, isLoad := (inst>>5)&0b11, util.Bit(inst, 20)
 	switch {
@@ -167,12 +175,12 @@ func armDecodeLDRSTR2(inst uint32) string {
 	}
 }
 
-func armDecodeMRS(inst uint32) string {
+func disassembleArmMRS(inst uint32) string {
 	// useSpsr := (inst>>22)&0b1 > 0
 	rd := (inst >> 12) & 0b1111
 	return fmt.Sprintf("mrs %d,psr", rd)
 }
-func armDecodeMSR(inst uint32) string {
+func disassembleArmMSR(inst uint32) string {
 	psr := "cpsr"
 	if util.Bit(inst, 22) {
 		psr = "spsr"
@@ -200,7 +208,7 @@ func armDecodeMSR(inst uint32) string {
 	}
 }
 
-func armDecodeMPY(inst uint32) string {
+func disassembleArmMPY(inst uint32) string {
 	opcode := inst >> 21 & 0b1111
 	switch opcode {
 	case 0b0000:
@@ -229,7 +237,7 @@ func armDecodeMPY(inst uint32) string {
 
 var aluOp2str = map[uint32]string{0x0: "and", 0x1: "eor", 0x2: "sub", 0x3: "rsb", 0x4: "add", 0x5: "adc", 0x6: "sbc", 0x7: "rsc", 0x8: "tst", 0x9: "teq", 0xa: "cmp", 0xb: "cmn", 0xc: "orr", 0xd: "mov", 0xe: "bic", 0xf: "mvn"}
 
-func armDecodeALU(inst uint32) string {
+func disassembleArmALU(inst uint32) string {
 	opcode := aluOp2str[inst>>21&0b1111]
 	rd := inst >> 12 & 0b1111
 	rn := (inst >> 16) & 0b1111

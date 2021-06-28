@@ -108,9 +108,8 @@ func (o *Obj) drawScanlineNormal(backing *Backing, y uint32, yOff int32, start, 
 		tileOffset = ((localY & 0x01f8) * uint32(o.cachedWidth)) >> 6
 	}
 
-	mosaicX := uint16(0)
 	if o.mosaic {
-		mosaicX = video.objMosaicX - 1 - ((video.objMosaicX + offset - 1) % video.objMosaicX)
+		mosaicX := video.objMosaicX - 1 - ((video.objMosaicX + offset - 1) % video.objMosaicX)
 		offset += mosaicX
 		underflow += mosaicX
 	}
@@ -127,7 +126,7 @@ func (o *Obj) drawScanlineNormal(backing *Backing, y uint32, yOff int32, start, 
 	)
 
 	for x = underflow; x < totalWidth; x++ {
-		mosaicX = 0
+		mosaicX := uint16(0)
 		if o.mosaic {
 			mosaicX = offset % video.objMosaicX
 		}
@@ -156,6 +155,9 @@ func (o *Obj) drawScanlineNormal(backing *Backing, y uint32, yOff int32, start, 
 		}
 		o.pushPixel(LAYER_OBJ, o, video, tileRow, uint32(localX&0x7), uint32(offset), backing, mask)
 		offset++
+		if offset >= HORIZONTAL_PIXELS {
+			break
+		}
 	}
 }
 

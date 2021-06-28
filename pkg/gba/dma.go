@@ -1,6 +1,7 @@
 package gba
 
 import (
+	"github.com/pokemium/magia/pkg/gba/apu"
 	"github.com/pokemium/magia/pkg/util"
 )
 
@@ -122,7 +123,7 @@ func (g *GBA) dmaTransfer(t dmaTiming) {
 
 // Receive 4 x 32bit (16 bytes) per DMA
 func (g *GBA) dmaTransferFifo(ch int) {
-	if !g.isSoundMasterEnable() || !g.dma[ch].enabled() || g.dma[ch].timing() != dmaSpecial {
+	if !g.apu.IsSoundMasterEnable() || !g.dma[ch].enabled() || g.dma[ch].timing() != dmaSpecial {
 		return
 	}
 
@@ -132,9 +133,9 @@ func (g *GBA) dmaTransferFifo(ch int) {
 		g._setRAM(g.dma[ch].dst, val, 4)
 
 		if ch == 1 {
-			g.fifoACopy(val)
+			apu.FifoACopy(val)
 		} else {
-			g.fifoBCopy(val)
+			apu.FifoBCopy(val)
 		}
 
 		switch (cnt >> (16 + 7)) & 0b11 {

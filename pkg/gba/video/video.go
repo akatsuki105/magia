@@ -1,7 +1,7 @@
 package video
 
 import (
-	"github.com/pokemium/magia/pkg/ram"
+	"github.com/pokemium/magia/pkg/gba/ram"
 	"github.com/pokemium/magia/pkg/util"
 )
 

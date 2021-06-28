@@ -5,11 +5,11 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"strings"
-	"syscall"
 
+	"github.com/pokemium/magia/pkg/emulator"
+	"github.com/pokemium/magia/pkg/emulator/audio"
+	"github.com/pokemium/magia/pkg/emulator/joypad"
 	"github.com/pokemium/magia/pkg/gba"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -75,25 +75,22 @@ func Run() ExitCode {
 		return ExitCodeError
 	}
 
-	emu := &Emulator{
-		gba: gba.New(data, *debug, *mute),
-		rom: path,
-	}
+	emu := emulator.New(gba.New(data, &audio.Stream, *debug, *mute), path)
 	if *showCartInfo {
-		fmt.Println(emu.gba.CartInfo())
+		fmt.Println(emu.GBA.CartInfo())
 		return ExitCodeOK
 	}
 
-	emu.SetupCloseHandler()
-	emu.loadSav()
+	emu.GBA.SetJoypadHandler(joypad.Handler)
+	emu.LoadSav()
 	if *showBIOSIntro {
-		emu.gba.Reset()
+		emu.GBA.Reset()
 	} else {
-		emu.gba.SoftReset()
+		emu.GBA.SoftReset()
 	}
 
 	ebiten.SetWindowResizable(true)
-	ebiten.SetWindowTitle(emu.gba.CartHeader.Title)
+	ebiten.SetWindowTitle(emu.GBA.CartHeader.Title)
 	ebiten.SetWindowSize(240*2, 160*2)
 	if err := ebiten.RunGame(emu); err != nil {
 		fmt.Fprintf(os.Stderr, "crash in emulation: %s\n", err)
@@ -114,56 +111,4 @@ func readROM(path string) ([]byte, error) {
 		return []byte{}, errors.New("fail to read file")
 	}
 	return bytes, nil
-}
-
-type Emulator struct {
-	gba *gba.GBA
-	rom string
-}
-
-func (e *Emulator) Update() error {
-	defer e.gba.PanicHandler("core", true)
-	e.gba.Update()
-	if e.gba.DoSav && e.gba.Frame%60 == 0 {
-		e.writeSav()
-	}
-	return nil
-}
-
-func (e *Emulator) Draw(screen *ebiten.Image) {
-	defer e.gba.PanicHandler("gpu", true)
-	screen.ReplacePixels(e.gba.Draw())
-}
-
-func (e *Emulator) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
-	return 240, 160
-}
-
-func (e *Emulator) SetupCloseHandler() {
-	c := make(chan os.Signal)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-c
-		e.gba.Exit("Ctrl+C pressed in Terminal")
-		os.Exit(0)
-	}()
-}
-
-func (e *Emulator) writeSav() {
-	path := strings.ReplaceAll(e.rom, ".gba", ".sav")
-	if e.gba.RAM.HasFlash {
-		os.WriteFile(path, e.gba.RAM.Flash[:], os.ModePerm)
-	} else {
-		os.WriteFile(path, e.gba.RAM.SRAM[:], os.ModePerm)
-	}
-	e.gba.DoSav = false
-}
-
-func (e *Emulator) loadSav() {
-	path := strings.ReplaceAll(e.rom, ".gba", ".sav")
-	if f, err := os.Stat(path); os.IsNotExist(err) || f.IsDir() {
-		return
-	} else if sav, err := os.ReadFile(path); err == nil {
-		e.gba.LoadSav(sav)
-	}
 }

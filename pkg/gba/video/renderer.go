@@ -791,44 +791,40 @@ func (s *SoftwareRenderer) DrawScanline(y uint16) {
 
 	for i := 0; i < len(s.drawLayers); i++ {
 		layer := s.drawLayers[i]
+		idx := layer.Index()
 		if !layer.Enabled() {
 			continue
 		}
 
 		s.objwinActive = false
-		if !(s.win0 || s.win1 || s.objwin) {
+		if !s.win0 && !s.win1 && !s.objwin {
 			// no window
-			s.setBlendEnabled(layer.Index(), s.target1[layer.Index()] > 0, s.blendMode)
+			s.setBlendEnabled(idx, s.target1[idx] > 0, s.blendMode)
 			layer.drawScanline(backing, 0, HORIZONTAL_PIXELS)
 		} else {
 			// use window
-			firstStart, firstEnd := 0, HORIZONTAL_PIXELS
-			lastStart, lastEnd := 0, HORIZONTAL_PIXELS
+			firstStart, firstEnd := uint16(0), uint16(HORIZONTAL_PIXELS)
+			lastStart, lastEnd := uint16(0), uint16(HORIZONTAL_PIXELS)
 
-			if s.win0 && y >= s.win0Top && y < s.win0Bottom {
-				if s.windows[0].enabled[layer.Index()] {
-					s.setBlendEnabled(
-						layer.Index(),
-						s.windows[0].special && s.target1[layer.Index()] > 0,
-						s.blendMode,
-					)
+			if s.win0 && (y >= s.win0Top && y < s.win0Bottom) {
+				// inner window0
+				if s.windows[0].enabled[idx] {
+					s.setBlendEnabled(idx, s.windows[0].special && s.target1[idx] > 0, s.blendMode)
 					layer.drawScanline(backing, uint32(s.win0Left), uint32(s.win0Right))
 				}
-				firstStart = int(math.Max(float64(firstStart), float64(s.win0Left)))
-				firstEnd = int(math.Min(float64(firstEnd), float64(s.win0Left)))
-				lastStart = int(math.Max(float64(lastStart), float64(s.win0Right)))
-				lastEnd = int(math.Min(float64(lastEnd), float64(s.win0Right)))
+
+				firstStart = uint16(math.Max(float64(firstStart), float64(s.win0Left)))
+				firstEnd = uint16(math.Min(float64(firstEnd), float64(s.win0Left)))
+				lastStart = uint16(math.Max(float64(lastStart), float64(s.win0Right)))
+				lastEnd = uint16(math.Min(float64(lastEnd), float64(s.win0Right)))
 			}
 
-			if s.win1 && y >= s.win1Top && y < s.win1Bottom {
-				if s.windows[1].enabled[layer.Index()] {
-					s.setBlendEnabled(
-						layer.Index(),
-						s.windows[1].special && s.target1[layer.Index()] > 0,
-						s.blendMode,
-					)
-					if !s.windows[0].enabled[layer.Index()] &&
-						(int(s.win1Left) < firstStart || int(s.win1Right) < lastStart) {
+			if s.win1 && (y >= s.win1Top && y < s.win1Bottom) {
+				// inner window1
+				if s.windows[1].enabled[idx] {
+					s.setBlendEnabled(idx, s.windows[1].special && s.target1[idx] > 0, s.blendMode)
+
+					if !s.windows[0].enabled[idx] && (s.win1Left < firstStart || s.win1Right < lastStart) {
 						// We've been cut in two by window 0!
 						layer.drawScanline(backing, uint32(s.win1Left), uint32(firstStart))
 						layer.drawScanline(backing, uint32(lastEnd), uint32(s.win1Right))
@@ -836,21 +832,19 @@ func (s *SoftwareRenderer) DrawScanline(y uint16) {
 						layer.drawScanline(backing, uint32(s.win1Left), uint32(s.win1Right))
 					}
 				}
-				firstStart = int(math.Max(float64(firstStart), float64(s.win1Left)))
-				firstEnd = int(math.Min(float64(firstEnd), float64(s.win1Left)))
-				lastStart = int(math.Max(float64(lastStart), float64(s.win1Right)))
-				lastEnd = int(math.Min(float64(lastEnd), float64(s.win1Right)))
+
+				firstStart = uint16(math.Max(float64(firstStart), float64(s.win1Left)))
+				firstEnd = uint16(math.Min(float64(firstEnd), float64(s.win1Left)))
+				lastStart = uint16(math.Max(float64(lastStart), float64(s.win1Right)))
+				lastEnd = uint16(math.Min(float64(lastEnd), float64(s.win1Right)))
 			}
 
 			// Do last two
-			if s.windows[2].enabled[layer.Index()] || (s.objwin && s.windows[3].enabled[layer.Index()]) {
+			if s.windows[2].enabled[idx] || (s.objwin && s.windows[3].enabled[idx]) {
 				// WINOUT/OBJWIN
 				s.objwinActive = s.objwin
-				s.setBlendEnabled(
-					layer.Index(),
-					s.windows[2].special && s.target1[layer.Index()] > 0,
-					s.blendMode,
-				) // Window 3 handled in pushPixel
+				s.setBlendEnabled(idx, s.windows[2].special && s.target1[idx] > 0, s.blendMode) // Window 3 handled in pushPixel
+
 				if firstEnd > lastStart {
 					layer.drawScanline(backing, 0, HORIZONTAL_PIXELS)
 				} else {
@@ -866,11 +860,7 @@ func (s *SoftwareRenderer) DrawScanline(y uint16) {
 				}
 			}
 
-			s.setBlendEnabled(
-				LAYER_BACKDROP,
-				(s.target1[LAYER_BACKDROP] > 0 && s.windows[2].special),
-				s.blendMode,
-			)
+			s.setBlendEnabled(LAYER_BACKDROP, (s.target1[LAYER_BACKDROP] > 0 && s.windows[2].special), s.blendMode)
 		}
 
 		if l, ok := layer.(*BGLayer); ok {

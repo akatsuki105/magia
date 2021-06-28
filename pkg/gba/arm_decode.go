@@ -1,100 +1,100 @@
 package gba
 
 // 27-26: 00
-func isArmALU(inst uint32) bool {
+func IsArmALU(inst uint32) bool {
 	return inst&0b0000_1100_0000_0000_0000_0000_0000_0000 == 0
 }
 
 // 27-24: 1011
-func isArmBL(inst uint32) bool {
+func IsArmBL(inst uint32) bool {
 	return inst&0b0000_1111_0000_0000_0000_0000_0000_0000 == 0b0000_1011_0000_0000_0000_0000_0000_0000
 }
 
 // 27-24: 1010
-func isArmB(inst uint32) bool {
+func IsArmB(inst uint32) bool {
 	return inst&0b0000_1111_0000_0000_0000_0000_0000_0000 == 0b0000_1010_0000_0000_0000_0000_0000_0000
 }
 
 // 27-8: 0001_0010_1111_1111_1111 && 7-4: 0001
-func isArmBX(inst uint32) bool {
+func IsArmBX(inst uint32) bool {
 	return inst&0b0000_1111_1111_1111_1111_1111_1111_0000 == 0b0000_0001_0010_1111_1111_1111_0001_0000
 }
 
 // 27-24: 1111
-func isArmSWI(inst uint32) bool {
+func IsArmSWI(inst uint32) bool {
 	return inst&0b0000_1111_0000_0000_0000_0000_0000_0000 == 0b0000_1111_0000_0000_0000_0000_0000_0000
 }
 
 // 27-25: 011
-func isArmUND(inst uint32) bool {
+func IsArmUND(inst uint32) bool {
 	return inst&0b0000_1110_0000_0000_0000_0000_0000_0000 == 0b0000_0110_0000_0000_0000_0000_0000_0000
 }
 
 // multiply
 
 // 27-25: 000 & 7-4: 1001
-func isArmMPY(inst uint32) bool {
+func IsArmMPY(inst uint32) bool {
 	return inst&0b0000_1110_0000_0000_0000_0000_1111_0000 == 0b0000_0000_0000_0000_0000_0000_1001_0000
 }
 
 // 27-25: 000 & 20: 0 & 7: 1 & 4: 0
-func isArmMPY16(inst uint32) bool {
+func IsArmMPY16(inst uint32) bool {
 	return inst&0b0000_1110_0001_0000_0000_0000_1001_0000 == 0b0000_0000_0000_0000_0000_0000_1000_0000
 }
 
 // loadstore
 
 // 27-26: 01
-func isArmLDR(inst uint32) bool {
+func IsArmLDR(inst uint32) bool {
 	return inst&0b0000_1100_0001_0000_0000_0000_0000_0000 == 0b0000_0100_0001_0000_0000_0000_0000_0000
 }
 
 // 27-26: 01
-func isArmSTR(inst uint32) bool {
+func IsArmSTR(inst uint32) bool {
 	return inst&0b0000_1100_0001_0000_0000_0000_0000_0000 == 0b0000_0100_0000_0000_0000_0000_0000_0000
 }
 
 // 27-25: 000 & 20: 1 & 7-4: 1011
-func isArmLDRH(inst uint32) bool {
+func IsArmLDRH(inst uint32) bool {
 	return inst&0b0000_1110_0001_0000_0000_0000_1111_0000 == 0b0000_0000_0001_0000_0000_0000_1011_0000
 }
 
 // 27-25: 000 & 20: 1 & 7-4: 1101
-func isArmLDRSB(inst uint32) bool {
+func IsArmLDRSB(inst uint32) bool {
 	return inst&0b0000_1110_0001_0000_0000_0000_1111_0000 == 0b0000_0000_0001_0000_0000_0000_1101_0000
 }
 
 // 27-25: 000 & 20: 1 & 7-4: 1111
-func isArmLDRSH(inst uint32) bool {
+func IsArmLDRSH(inst uint32) bool {
 	return inst&0b0000_1110_0001_0000_0000_0000_1111_0000 == 0b0000_0000_0001_0000_0000_0000_1111_0000
 }
 
 // 27-25: 000 & 20: 0 & 7-4: 1011
-func isArmSTRH(inst uint32) bool {
+func IsArmSTRH(inst uint32) bool {
 	return inst&0b0000_1110_0001_0000_0000_0000_1111_0000 == 0b0000_0000_0000_0000_0000_0000_1011_0000
 }
 
 // 27-25: 100 & 20: 1
-func isArmLDM(inst uint32) bool {
+func IsArmLDM(inst uint32) bool {
 	return inst&0b0000_1110_0001_0000_0000_0000_0000_0000 == 0b0000_1000_0001_0000_0000_0000_0000_0000
 }
 
 // 27-25: 100 & 20: 0
-func isArmSTM(inst uint32) bool {
+func IsArmSTM(inst uint32) bool {
 	return inst&0b0000_1110_0001_0000_0000_0000_0000_0000 == 0b0000_1000_0000_0000_0000_0000_0000_0000
 }
 
 // 27-23: 0001_0 & 21-20: 00 & 11-4: 0000_1001
-func isArmSWP(inst uint32) bool {
+func IsArmSWP(inst uint32) bool {
 	return inst&0b0000_1111_1011_0000_0000_1111_1111_0000 == 0b0000_0001_0000_0000_0000_0000_1001_0000
 }
 
 // 27-23: 0001_0 & 21-16: 00_1111 & 11-0: 0000_0000_0000
-func isArmMRS(inst uint32) bool {
+func IsArmMRS(inst uint32) bool {
 	return inst&0b0000_1111_1011_1111_0000_1111_1111_1111 == 0b0000_0001_0000_1111_0000_0000_0000_0000
 }
 
 // 27-26: 00 & 24-23: 10 & 21-20: 10 & 15-12: 1111
-func isArmMSR(inst uint32) bool {
+func IsArmMSR(inst uint32) bool {
 	return inst&0b0000_1101_1011_0000_1111_0000_0000_0000 == 0b0000_0001_0010_0000_1111_0000_0000_0000
 }

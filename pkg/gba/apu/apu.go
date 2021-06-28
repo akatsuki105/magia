@@ -1,13 +1,9 @@
-package gba
+package apu
 
 import (
 	"math"
-	"time"
 
-	"github.com/pokemium/magia/pkg/ram"
 	"github.com/pokemium/magia/pkg/util"
-
-	"github.com/hajimehoshi/oto"
 )
 
 const (
@@ -32,14 +28,14 @@ const (
 )
 
 var waveSamples, wavePosition byte
-var waveRAM [0x20]byte
-var resetSoundChanMap = map[uint32]int{0x04000065: 0, 0x0400006d: 1, 0x04000075: 2, 0x0400007d: 3}
+var WaveRAM [0x20]byte
+var resetSoundChanMap = map[uint32]int{0x65 - 0x60: 0, 0x6d - 0x60: 1, 0x75 - 0x60: 2, 0x7d - 0x60: 3}
 
 type APU struct {
-	enable  bool
-	context *oto.Context
-	player  *oto.Player
-	chans   [4]*SoundChan
+	enable bool
+	buffer [72]byte
+	stream []byte
+	chans  [4]*SoundChan
 }
 
 type SoundChan struct {
@@ -48,99 +44,160 @@ type SoundChan struct {
 	samples, lengthTime, sweepTime, envTime float64
 }
 
+func (a *APU) Load32(ofs uint32) uint32 {
+	if ofs >= WAVE_RAM && ofs <= WAVE_RAM+0xf {
+		bank := (a.Load32(SOUND3CNT_L) >> 2) & 0x10
+		idx := (bank ^ 0x10) | (ofs & 0xf)
+		return util.LE32(WaveRAM[idx:])
+	}
+
+	return util.LE32(a.buffer[ofs:])
+}
+
+func (a *APU) Store8(ofs uint32, val byte) {
+	if ofs >= WAVE_RAM && ofs <= WAVE_RAM+0xf {
+		bank := (a.Load32(SOUND3CNT_L) >> 2) & 0x10
+		idx := (bank ^ 0x10) | (ofs & 0xf)
+		WaveRAM[idx] = val
+	}
+	if isResetSoundChan(ofs) {
+		a.resetSoundChan(ofs, val)
+	}
+
+	switch ofs {
+	case SOUND1CNT_L:
+		val &= 0x7f
+	case SOUND1CNT_L + 1:
+		val = 0
+	case SOUND1CNT_X + 1, SOUND2CNT_H + 1:
+		val &= 0xc7
+	case SOUND3CNT_L:
+		val &= 0xe0
+	case SOUND3CNT_L + 1:
+		val = 0
+	case SOUND3CNT_X + 1:
+		val &= 0xc7
+	case SOUND4CNT_L:
+		val &= 0x3f
+	case SOUND4CNT_H + 1:
+		val &= 0xc0
+	case SOUNDCNT_L:
+		val &= 0x77
+	case SOUNDCNT_H:
+		val &= 0x0f
+	case SOUNDCNT_X:
+		val &= 0x80
+	case SOUNDCNT_X + 1:
+		val = 0
+	}
+
+	a.buffer[ofs] = byte(val)
+}
+
+func (a *APU) Store16(ofs uint32, val uint16) {
+	a.Store8(ofs, byte(val))
+	a.Store8(ofs+1, byte(val>>8))
+	if ofs == SOUNDCNT_H {
+		if util.Bit(val, 11) {
+			FifoALen = 0
+		}
+		if util.Bit(val, 15) {
+			FifoBLen = 0
+		}
+	}
+}
+
+func (a *APU) Store32(ofs uint32, val uint32) {
+	a.Store8(ofs, byte(val))
+	a.Store8(ofs+1, byte(val>>8))
+	a.Store8(ofs+2, byte(val>>16))
+	a.Store8(ofs+3, byte(val>>24))
+}
+
 func isResetSoundChan(addr uint32) bool {
 	_, ok := resetSoundChanMap[addr]
 	return ok
 }
 
-func (g *GBA) resetSoundChan(addr uint32, b byte) {
-	g._resetSoundChan(resetSoundChanMap[addr], util.Bit(b, 7))
+func (a *APU) resetSoundChan(addr uint32, b byte) {
+	a._resetSoundChan(resetSoundChanMap[addr], util.Bit(b, 7))
 }
 
-func newAPU() *APU {
-	stream = make([]byte, STREAM_LEN)
-
-	context, err := oto.NewContext(SND_FREQUENCY, 2, 2, STREAM_LEN)
-	if err != nil {
-		panic(err)
-	}
-
-	player := context.NewPlayer()
+func New() *APU {
 	return &APU{
-		context: context,
-		player:  player,
-		chans:   [4]*SoundChan{{}, {}, {}, {}},
+		chans: [4]*SoundChan{{}, {}, {}, {}},
 	}
 }
 
-func (a *APU) exit() { a.context.Close() }
+func (a *APU) SetBuffer(s []byte) {
+	a.stream = s
+}
 
-func (a *APU) play() {
+func (a *APU) Play() {
 	a.enable = true
-	go func() {
-		for range time.Tick(time.Second / 60) {
-			soundMix()
-			if a.enable {
-				a.player.Write(stream)
-			}
-		}
-	}()
+	if a.stream == nil {
+		return
+	}
+	if len(a.stream) == 0 {
+		return
+	}
+	a.soundMix()
 }
 
 var dutyLookUp = [4]float64{0.125, 0.25, 0.5, 0.75}
 var dutyLookUpi = [4]float64{0.875, 0.75, 0.5, 0.25}
 
-func (g *GBA) squareSample(ch int) int8 {
-	if !g.isSoundChanEnable(ch) {
+func (a *APU) squareSample(ch int) int8 {
+	if !a.isSoundChanEnable(ch) {
 		return 0
 	}
 
-	toneAddr := uint32(ram.SOUND1CNT_H)
+	toneAddr := uint32(SOUND1CNT_H)
 	if ch == 1 {
-		toneAddr = ram.SOUND2CNT_L
+		toneAddr = SOUND2CNT_L
 	}
 
-	freqHz := g._getRAM(ram.SOUND1CNT_X) & 0b0111_1111_1111
+	freqHz := a.Load32(SOUND1CNT_X) & 0b0111_1111_1111
 	if ch == 1 {
-		freqHz = g._getRAM(ram.SOUND2CNT_H) & 0b0111_1111_1111
+		freqHz = a.Load32(SOUND2CNT_H) & 0b0111_1111_1111
 	}
 	frequency := 131072 / float64(2048-freqHz)
 
 	// Full length of the generated wave (if enabled) in seconds
-	soundLen := g._getRAM(toneAddr) & 0b0011_1111
+	soundLen := a.Load32(toneAddr) & 0b0011_1111
 	length := float64(64-soundLen) / 256
 
 	// Envelope volume change interval in seconds
-	envStep := g._getRAM(toneAddr) >> 8 & 0b111
+	envStep := a.Load32(toneAddr) >> 8 & 0b111
 	envelopeInterval := float64(envStep) / 64
 
 	cycleSamples := SND_FREQUENCY / frequency // Numbers of samples that a single cycle (wave phase change 1 -> 0) takes at output sample rate
 
 	// Length reached check (if so, just disable the channel and return silence)
-	if (ch == 0 && util.Bit(g._getRAM(ram.SOUND1CNT_X), 14)) || (ch == 1 && util.Bit(g._getRAM(ram.SOUND2CNT_H), 14)) {
-		g.apu.chans[ch].lengthTime += SAMPLE_TIME
-		if g.apu.chans[ch].lengthTime >= length {
-			g.enableSoundChan(ch, false)
+	if (ch == 0 && util.Bit(a.Load32(SOUND1CNT_X), 14)) || (ch == 1 && util.Bit(a.Load32(SOUND2CNT_H), 14)) {
+		a.chans[ch].lengthTime += SAMPLE_TIME
+		if a.chans[ch].lengthTime >= length {
+			a.enableSoundChan(ch, false)
 			return 0
 		}
 	}
 
 	// Frequency sweep (Square 1 channel only)
 	if ch == 0 {
-		sweepTime := (g._getRAM(ram.SOUND1CNT_L) >> 4) & 0b111
-		sweepInterval := 0.0078 * float64(sweepTime+1) // Frquency sweep change interval in seconds
+		sweepTime := (a.Load32(SOUND1CNT_L) >> 4) & 0b111 // 0-7 (0=7.8ms, 7=54.7ms)
+		sweepInterval := 0.0078 * float64(sweepTime+1)    // Frquency sweep change interval in seconds
 
-		g.apu.chans[0].sweepTime += SAMPLE_TIME
-		if g.apu.chans[0].sweepTime >= sweepInterval {
-			g.apu.chans[0].sweepTime -= sweepInterval
+		a.chans[0].sweepTime += SAMPLE_TIME
+		if a.chans[0].sweepTime >= sweepInterval {
+			a.chans[0].sweepTime -= sweepInterval
 
 			// A Sweep Shift of 0 means that Sweep is disabled
-			sweepShift := byte(g._getRAM(ram.SOUND1CNT_L) & 7)
+			sweepShift := byte(a.Load32(SOUND1CNT_L) & 7)
 
 			if sweepShift != 0 {
-				disp := freqHz >> sweepShift
-
-				if util.Bit(g._getRAM(ram.SOUND1CNT_L), 3) {
+				// X(t) = X(t-1) ± X(t-1)/2^n
+				disp := freqHz >> sweepShift // X(t-1)/2^n
+				if util.Bit(a.Load32(SOUND1CNT_L), 3) {
 					freqHz -= disp
 				} else {
 					freqHz += disp
@@ -148,25 +205,26 @@ func (g *GBA) squareSample(ch int) int8 {
 
 				if freqHz < 0x7ff {
 					// update frequency
-					ctrl := uint16(g._getRAM(ram.SOUND1CNT_X))
+					ctrl := uint16(a.Load32(SOUND1CNT_X))
 					ctrl = (ctrl & ^uint16(0x7ff)) | uint16(freqHz)
-					g._setRAM(ram.SOUND1CNT_X, uint32(ctrl), 2)
+					a.buffer[SOUND1CNT_X] = byte(ctrl)
+					a.buffer[SOUND1CNT_X+1] = byte(ctrl >> 8)
 				} else {
-					g.enableSoundChan(0, false)
+					a.enableSoundChan(0, false)
 				}
 			}
 		}
 	}
 
 	// Envelope volume
-	envelope := uint16((g._getRAM(toneAddr) >> 12) & 0xf)
+	envelope := uint16((a.Load32(toneAddr) >> 12) & 0xf)
 	if envStep > 0 {
-		g.apu.chans[ch].envTime += SAMPLE_TIME
+		a.chans[ch].envTime += SAMPLE_TIME
 
-		if g.apu.chans[ch].envTime >= envelopeInterval {
-			g.apu.chans[ch].envTime -= envelopeInterval
+		if a.chans[ch].envTime >= envelopeInterval {
+			a.chans[ch].envTime -= envelopeInterval
 
-			tone := uint16(g._getRAM(toneAddr))
+			tone := uint16(a.Load32(toneAddr))
 			if util.Bit(tone, 11) {
 				if envelope < 0xf {
 					envelope++
@@ -177,64 +235,66 @@ func (g *GBA) squareSample(ch int) int8 {
 				}
 			}
 
+			// update envelope
 			tone = (tone & ^uint16(0xf000)) | (envelope << 12)
-			g._setRAM(toneAddr, uint32(tone), 2)
+			a.buffer[toneAddr] = byte(tone)
+			a.buffer[toneAddr+1] = byte(tone >> 8)
 		}
 	}
 
 	// Phase change (when the wave goes from Low to High or High to Low, the Square Wave pattern)
-	duty := (g._getRAM(toneAddr) >> 6) & 0b11
-	g.apu.chans[ch].samples++
-	if g.apu.chans[ch].phase {
-		// 1 -> 0
+	duty := (a.Load32(toneAddr) >> 6) & 0b11
+	a.chans[ch].samples++
+	if a.chans[ch].phase {
+		// 1 -> 0 -_
 		phaseChange := cycleSamples * dutyLookUp[duty]
-		if g.apu.chans[ch].samples > phaseChange {
-			g.apu.chans[ch].samples -= phaseChange
-			g.apu.chans[ch].phase = false
+		if a.chans[ch].samples > phaseChange {
+			a.chans[ch].samples -= phaseChange
+			a.chans[ch].phase = false
 		}
 	} else {
-		// 0 -> 1
+		// 0 -> 1 _-
 		phaseChange := cycleSamples * dutyLookUpi[duty]
-		if g.apu.chans[ch].samples > phaseChange {
-			g.apu.chans[ch].samples -= phaseChange
-			g.apu.chans[ch].phase = true
+		if a.chans[ch].samples > phaseChange {
+			a.chans[ch].samples -= phaseChange
+			a.chans[ch].phase = true
 		}
 	}
 
-	if g.apu.chans[ch].phase {
+	if a.chans[ch].phase {
 		return int8(float64(envelope) * PSG_MAX / 15)
 	}
 	return int8(float64(envelope) * PSG_MIN / 15)
 }
 
-func (g *GBA) enableSoundChan(ch int, enable bool) {
-	cntx := g._getRAM(ram.SOUNDCNT_X)
+func (a *APU) enableSoundChan(ch int, enable bool) {
+	cntx := a.Load32(SOUNDCNT_X)
 	cntx = util.SetBit32(cntx, ch, enable)
-	g.RAM.IO[ram.IOOffset(ram.SOUNDCNT_X)] = byte(cntx)
+	a.buffer[SOUNDCNT_X] = byte(cntx)
 }
 
-func (g *GBA) isSoundMasterEnable() bool {
-	cntx := byte(g._getRAM(ram.SOUNDCNT_X))
+func (a *APU) IsSoundMasterEnable() bool {
+	cntx := byte(a.Load32(SOUNDCNT_X))
 	return util.Bit(cntx, 7)
 }
 
-func (g *GBA) isSoundChanEnable(ch int) bool {
-	cntx := byte(g._getRAM(ram.SOUNDCNT_X))
+func (a *APU) isSoundChanEnable(ch int) bool {
+	cntx := byte(a.Load32(SOUNDCNT_X))
 	return util.Bit(cntx, ch)
 }
 
 // chan3
-func (g *GBA) waveSample() int8 {
-	wave := uint16(g._getRAM(ram.SOUND3CNT_L))
-	if !(g.isSoundChanEnable(2) && util.Bit(wave, 7)) {
+func (a *APU) waveSample() int8 {
+	wave := uint16(a.Load32(SOUND3CNT_L))
+	if !(a.isSoundChanEnable(2) && util.Bit(wave, 7)) {
 		return 0
 	}
 
 	// Actual frequency in Hertz
-	rate := g._getRAM(ram.SOUND3CNT_X) & 2047
+	rate := a.Load32(SOUND3CNT_X) & 2047
 	frequency := 2097152 / (2048 - float64(rate))
 
-	cnth := uint16(g._getRAM(ram.SOUND3CNT_H)) // volume
+	cnth := uint16(a.Load32(SOUND3CNT_H)) // volume
 
 	// Full length of the generated wave (if enabled) in seconds
 	soundLen := cnth & 0xff
@@ -244,27 +304,27 @@ func (g *GBA) waveSample() int8 {
 	cycleSamples := SND_FREQUENCY / frequency
 
 	// Length reached check (if so, just disable the channel and return silence)
-	if util.Bit(uint16(g._getRAM(ram.SOUND3CNT_X)), 14) {
-		g.apu.chans[2].lengthTime += SAMPLE_TIME
-		if g.apu.chans[2].lengthTime >= length {
-			g.enableSoundChan(2, false)
+	if util.Bit(uint16(a.Load32(SOUND3CNT_X)), 14) {
+		a.chans[2].lengthTime += SAMPLE_TIME
+		if a.chans[2].lengthTime >= length {
+			a.enableSoundChan(2, false)
 			return 0
 		}
 	}
 
-	g.apu.chans[2].samples++
-	if g.apu.chans[2].samples >= cycleSamples {
-		g.apu.chans[2].samples -= cycleSamples
+	a.chans[2].samples++
+	if a.chans[2].samples >= cycleSamples {
+		a.chans[2].samples -= cycleSamples
 
 		waveSamples--
 		if waveSamples != 0 {
 			wavePosition = (wavePosition + 1) & 0b0011_1111
 		} else {
-			g.waveReset()
+			a.waveReset()
 		}
 	}
 
-	wavedata := waveRAM[(uint32(wavePosition)>>1)&0x1f]
+	wavedata := WaveRAM[(uint32(wavePosition)>>1)&0x1f]
 	sample := (float64((wavedata>>((wavePosition&1)<<2))&0xf) - 0x8) / 8
 
 	switch volume := (cnth >> 13) & 0x7; volume {
@@ -286,12 +346,12 @@ func (g *GBA) waveSample() int8 {
 }
 
 // chan4
-func (g *GBA) noiseSample() int8 {
-	if !g.isSoundChanEnable(3) {
+func (a *APU) noiseSample() int8 {
+	if !a.isSoundChanEnable(3) {
 		return 0
 	}
 
-	cnth := g._getRAM(ram.SOUND4CNT_H) // ctrl
+	cnth := a.Load32(SOUND4CNT_H) // ctrl
 
 	// Actual frequency in Hertz (524288 / r / 2^(s+1))
 	r, s := float64(cnth&0x7), float64((cnth>>4)&0xf)
@@ -300,16 +360,16 @@ func (g *GBA) noiseSample() int8 {
 	}
 	frequency := (524288 / r) / math.Pow(2, s+1)
 
-	cntl := g._getRAM(ram.SOUND4CNT_L) // env
+	cntl := a.Load32(SOUND4CNT_L) // env
 	// Full length of the generated wave (if enabled) in seconds
 	soundLen := cntl & 0x3f
 	length := (64 - float64(soundLen)) / 256
 
 	// Length reached check (if so, just disable the channel and return silence)
 	if util.Bit(cnth, 14) {
-		g.apu.chans[3].lengthTime += SAMPLE_TIME
-		if g.apu.chans[3].lengthTime >= length {
-			g.enableSoundChan(3, false)
+		a.chans[3].lengthTime += SAMPLE_TIME
+		if a.chans[3].lengthTime >= length {
+			a.enableSoundChan(3, false)
 			return 0
 		}
 	}
@@ -321,9 +381,9 @@ func (g *GBA) noiseSample() int8 {
 	// Envelope volume
 	envelope := (cntl >> 12) & 0xf
 	if envStep != 0 {
-		g.apu.chans[3].envTime += SAMPLE_TIME
-		if g.apu.chans[3].envTime >= envelopeInterval {
-			g.apu.chans[3].envTime -= envelopeInterval
+		a.chans[3].envTime += SAMPLE_TIME
+		if a.chans[3].envTime >= envelopeInterval {
+			a.chans[3].envTime -= envelopeInterval
 
 			if util.Bit(cntl, 11) {
 				if envelope < 0xf {
@@ -336,24 +396,27 @@ func (g *GBA) noiseSample() int8 {
 			}
 
 			newCntl := (cntl & ^uint32(0xf000)) | (envelope << 12)
-			g._setRAM(ram.SOUND4CNT_L, newCntl, 4)
+			a.buffer[SOUND4CNT_L] = byte(newCntl)
+			a.buffer[SOUND4CNT_L+1] = byte(newCntl >> 8)
+			a.buffer[SOUND4CNT_L+2] = byte(newCntl >> 16)
+			a.buffer[SOUND4CNT_L+3] = byte(newCntl >> 24)
 		}
 	}
 
 	// Numbers of samples that a single cycle (pseudo-random noise value) takes at output sample rate
 	cycleSamples := SND_FREQUENCY / frequency
 
-	carry := byte(g.apu.chans[3].lfsr & 0b1)
-	g.apu.chans[3].samples++
-	if g.apu.chans[3].samples >= cycleSamples {
-		g.apu.chans[3].samples -= cycleSamples
-		g.apu.chans[3].lfsr >>= 1
+	carry := byte(a.chans[3].lfsr & 0b1)
+	a.chans[3].samples++
+	if a.chans[3].samples >= cycleSamples {
+		a.chans[3].samples -= cycleSamples
+		a.chans[3].lfsr >>= 1
 
 		if carry > 0 {
 			if util.Bit(cnth, 3) { // R/W Counter Step/Width
-				g.apu.chans[3].lfsr ^= 0x60 // 1: 7bits
+				a.chans[3].lfsr ^= 0x60 // 1: 7bits
 			} else {
-				g.apu.chans[3].lfsr ^= 0x6000 // 0: 15bits
+				a.chans[3].lfsr ^= 0x6000 // 0: 15bits
 			}
 		}
 	}
@@ -364,8 +427,8 @@ func (g *GBA) noiseSample() int8 {
 	return int8((float64(envelope) / 15) * PSG_MIN) // Out=LOW
 }
 
-func (g *GBA) waveReset() {
-	wave := uint16(g._getRAM(ram.SOUND3CNT_L))
+func (a *APU) waveReset() {
+	wave := uint16(a.Load32(SOUND3CNT_L))
 	if util.Bit(wave, 5) { // R/W Wave RAM Dimension
 		// 64 samples (at 4 bits each, uses both banks so initial position is always 0)
 		wavePosition, waveSamples = 0, 64
@@ -381,7 +444,7 @@ var (
 )
 
 // This prevents the cursor from overflowing. Call after some time (like per frame, or per second...)
-func soundBufferWrap() {
+func SoundBufferWrap() {
 	left, right := sndCurPlay/BUFF_SAMPLES, sndCurWrite/BUFF_SAMPLES
 	if left == right {
 		sndCurPlay &= BUFF_SAMPLES_MSK
@@ -390,15 +453,14 @@ func soundBufferWrap() {
 }
 
 var sndBuffer [BUFF_SAMPLES]int16
-var stream []byte
 
-func soundMix() {
+func (a *APU) soundMix() {
 	for i := 0; i < STREAM_LEN; i += 4 {
 		snd := sndBuffer[sndCurPlay&BUFF_SAMPLES_MSK] << 6
-		stream[i+0], stream[i+1] = byte(snd), byte(snd>>8)
+		a.stream[i+0], a.stream[i+1] = byte(snd), byte(snd>>8)
 		sndCurPlay++
 		snd = sndBuffer[sndCurPlay&BUFF_SAMPLES_MSK] << 6
-		stream[i+2], stream[i+3] = byte(snd), byte(snd>>8)
+		a.stream[i+2], a.stream[i+3] = byte(snd), byte(snd>>8)
 		sndCurPlay++
 	}
 
@@ -408,28 +470,29 @@ func soundMix() {
 }
 
 var (
-	fifoALen, fifoBLen byte
+	FifoALen, FifoBLen byte
 	fifoA, fifoB       [0x20]int8
 )
 
-func (g *GBA) fifoACopy(val uint32) {
-	if fifoALen > 28 { // FIFO A full
-		fifoALen -= 28
+func FifoACopy(val uint32) {
+	if FifoALen > 28 { // FIFO A full
+		FifoALen -= 28
 	}
 
 	for i := uint32(0); i < 4; i++ {
-		fifoA[fifoALen] = int8(val >> (8 * i))
-		fifoALen++
+		fifoA[FifoALen] = int8(val >> (8 * i))
+		FifoALen++
 	}
 }
-func (g *GBA) fifoBCopy(val uint32) {
-	if fifoBLen > 28 { // FIFO B full
-		fifoBLen -= 28
+
+func FifoBCopy(val uint32) {
+	if FifoBLen > 28 { // FIFO B full
+		FifoBLen -= 28
 	}
 
 	for i := uint32(0); i < 4; i++ {
-		fifoB[fifoBLen] = int8(val >> (8 * i))
-		fifoBLen++
+		fifoB[FifoBLen] = int8(val >> (8 * i))
+		FifoBLen++
 	}
 }
 
@@ -437,28 +500,28 @@ var (
 	fifoASamp, fifoBSamp int8
 )
 
-func (g *GBA) fifoALoad() {
-	if fifoALen == 0 {
+func FifoALoad() {
+	if FifoALen == 0 {
 		return
 	}
 
 	fifoASamp = fifoA[0]
-	fifoALen--
+	FifoALen--
 
-	for i := byte(0); i < fifoALen; i++ {
+	for i := byte(0); i < FifoALen; i++ {
 		fifoA[i] = fifoA[i+1]
 	}
 }
 
-func (g *GBA) fifoBLoad() {
-	if fifoBLen == 0 {
+func FifoBLoad() {
+	if FifoBLen == 0 {
 		return
 	}
 
 	fifoBSamp = fifoB[0]
-	fifoBLen--
+	FifoBLen--
 
-	for i := byte(0); i < fifoBLen; i++ {
+	for i := byte(0); i < FifoBLen; i++ {
 		fifoB[i] = fifoB[i+1]
 	}
 }
@@ -480,13 +543,12 @@ func clip(val int32) int16 {
 	return int16(val)
 }
 
-func (g *GBA) soundClock(cycles uint32) {
-	defer g.PanicHandler("apu", true)
+func (a *APU) SoundClock(cycles uint32) {
 	sndCycles += cycles
 
 	sampPcmL, sampPcmR := int16(0), int16(0)
 
-	cnth := uint16(g._getRAM(ram.SOUNDCNT_H)) // snd_pcm_vol
+	cnth := uint16(a.Load32(SOUNDCNT_H)) // snd_pcm_vol
 	volADiv, volBDiv := int16((cnth>>2)&0b1)^1, int16((cnth>>3)&0b1)^1
 	sampCh4, sampCh5 := (int16(fifoASamp)<<1)>>volADiv, (int16(fifoBSamp)<<1)>>volBDiv
 
@@ -507,10 +569,10 @@ func (g *GBA) soundClock(cycles uint32) {
 	}
 
 	for sndCycles >= SAMP_CYCLES {
-		sampCh := [4]int16{int16(g.squareSample(0)), int16(g.squareSample(1)), int16(g.waveSample()), int16(g.noiseSample())}
+		sampCh := [4]int16{int16(a.squareSample(0)), int16(a.squareSample(1)), int16(a.waveSample()), int16(a.noiseSample())}
 		sampPsgL, sampPsgR := int32(0), int32(0)
 
-		cntl := uint16(g._getRAM(ram.SOUNDCNT_L)) // snd_psg_vol
+		cntl := uint16(a.Load32(SOUNDCNT_L)) // snd_psg_vol
 		for i := 0; i < 4; i++ {
 			if util.Bit(cntl, 12+i) {
 				sampPsgL = int32(clip(sampPsgL + int32(sampCh[i])))
@@ -537,21 +599,21 @@ func (g *GBA) soundClock(cycles uint32) {
 	}
 }
 
-func (g *GBA) _resetSoundChan(ch int, enable bool) {
+func (a *APU) _resetSoundChan(ch int, enable bool) {
 	if enable {
-		g.apu.chans[ch] = &SoundChan{}
+		a.chans[ch] = &SoundChan{}
 
 		switch ch {
 		case 2:
-			g.waveReset()
+			a.waveReset()
 		case 3:
-			if util.Bit(g._getRAM(ram.SOUND4CNT_H), 3) { // R/W Counter Step/Width
-				g.apu.chans[3].lfsr = 0x0040 // 7bit
+			if util.Bit(a.Load32(SOUND4CNT_H), 3) { // R/W Counter Step/Width
+				a.chans[3].lfsr = 0x0040 // 7bit
 			} else {
-				g.apu.chans[3].lfsr = 0x4000 // 15bit
+				a.chans[3].lfsr = 0x4000 // 15bit
 			}
 		}
 
-		g.enableSoundChan(ch, true)
+		a.enableSoundChan(ch, true)
 	}
 }

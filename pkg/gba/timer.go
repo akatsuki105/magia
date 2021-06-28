@@ -1,7 +1,8 @@
 package gba
 
 import (
-	"github.com/pokemium/magia/pkg/ram"
+	"github.com/pokemium/magia/pkg/gba/apu"
+	"github.com/pokemium/magia/pkg/gba/ram"
 	"github.com/pokemium/magia/pkg/util"
 )
 
@@ -170,7 +171,7 @@ var clockShift = [4]byte{0, 6, 8, 10}
 func (g *GBA) Tick(cycles int) [4]bool {
 	overflow, irq := false, [4]bool{}
 	ts := &g.timers
-	cnth := uint16(g._getRAM(ram.SOUNDCNT_H))
+	cnth := uint16(g.apu.Load32(apu.SOUNDCNT_H))
 
 	for i := 0; i < 4; i++ {
 		if !ts[i].enable() {
@@ -193,14 +194,14 @@ func (g *GBA) Tick(cycles int) [4]bool {
 			overflow = ts[i].increment(inc)
 			if overflow {
 				if (cnth>>SoundATimer)&0b1 == uint16(i) {
-					g.fifoALoad()
-					if fifoALen <= 0x10 {
+					apu.FifoALoad()
+					if apu.FifoALen <= 0x10 {
 						g.dmaTransferFifo(1)
 					}
 				}
 				if (cnth>>SoundBTimer)&0b1 == uint16(i) {
-					g.fifoBLoad()
-					if fifoBLen <= 0x10 {
+					apu.FifoBLoad()
+					if apu.FifoBLen <= 0x10 {
 						g.dmaTransferFifo(2)
 					}
 				}

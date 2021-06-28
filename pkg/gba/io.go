@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pokemium/magia/pkg/ram"
+	"github.com/pokemium/magia/pkg/gba/apu"
+	"github.com/pokemium/magia/pkg/gba/ram"
 	"github.com/pokemium/magia/pkg/util"
 )
 
@@ -14,10 +15,8 @@ func (g *GBA) _getRAM(addr uint32) uint32 {
 	switch {
 	case (addr >= 0x0400_0000) && (addr < 0x0400_0000+0x60):
 		return g.video.Load32(addr)
-	case g.in(addr, ram.WAVE_RAM, ram.WAVE_RAM+0xf):
-		bank := (g._getRAM(ram.SOUND3CNT_L) >> 2) & 0x10
-		idx := (bank ^ 0x10) | (addr & 0xf)
-		return util.LE32(waveRAM[idx:])
+	case (addr >= 0x0400_0060) && (addr < 0x0400_00A8):
+		return g.apu.Load32(addr - 0x0400_0060)
 	case isDMA0IO(addr):
 		return g.dma[0].get(addr - ram.DMA0SAD)
 	case isDMA1IO(addr):
@@ -108,88 +107,87 @@ func (g *GBA) _setRAM(addr uint32, val uint32, width int) {
 		case 4:
 			g.video.Set32(addr, val)
 		}
-	case g.in(addr, ram.SOUND1CNT_L, ram.SOUNDCNT_L+1): // sound io
-		if util.Bit(byte(g._getRAM(ram.SOUNDCNT_X)), 7) {
+
+	case g.in(addr, ram.SOUND1CNT_L, ram.SOUNDCNT_H): // sound io
+		if util.Bit(byte(g.apu.Load32(apu.SOUNDCNT_X)), 7) {
 			for i := uint32(0); i < uint32(width); i++ {
-				g.RAM.Set8(addr+i, byte(val>>(8*i)))
-				if isResetSoundChan(addr + i) {
-					g.resetSoundChan(addr+i, byte(val>>(8*i)))
-				}
+				g.apu.Store8(addr+i-ram.SOUND1CNT_L, byte(val>>(8*i)))
 			}
 		}
-	case addr == ram.SOUNDCNT_H:
-		for i := uint32(0); i < uint32(width); i++ {
-			g.RAM.IO[ram.IOOffset(addr+i)] = byte(val >> (8 * i))
-		}
-		if util.Bit(val, 11) {
-			fifoALen = 0
-		}
-		if util.Bit(val, 15) {
-			fifoBLen = 0
-		}
+
 	case addr == ram.SOUNDCNT_X:
-		old := byte(g._getRAM(addr))
+		old := byte(g.apu.Load32(apu.SOUNDCNT_X))
 		old = (old & 0xf) | (byte(val) & 0xf0)
-		g.RAM.Set8(addr, old)
+		g.apu.Store8(apu.SOUNDCNT_X, old)
 		if !util.Bit(byte(val), 7) {
 			for i := uint32(0x4000060); i <= 0x4000081; i++ {
-				g.RAM.IO[ram.IOOffset(i)] = 0
+				g.apu.Store8(i-0x4000060, 0)
 			}
-			g.RAM.IO[ram.IOOffset(addr)] = 0
+			g.apu.Store8(apu.SOUNDCNT_X, 0)
 		}
+
 	case g.in(addr, ram.WAVE_RAM, ram.WAVE_RAM+0xf): // wave ram
-		for i := uint32(0); i < uint32(width); i++ {
-			bank := (g._getRAM(ram.SOUND3CNT_L) >> 2) & 0x10
-			idx := (bank ^ 0x10) | (addr & 0xf)
-			waveRAM[idx+i] = byte(val >> (8 * i))
+		if width == 2 {
+			g.apu.Store16(addr-ram.SOUND1CNT_L, uint16(val))
 		}
+
 	case isDMA0IO(addr):
 		for i := uint32(0); i < uint32(width); i++ {
 			if g.dma[0].set(addr-0x0400_00b0+i, byte(val>>(8*i))) {
 				g.dmaTransfer(dmaImmediate)
 			}
 		}
+
 	case isDMA1IO(addr):
 		for i := uint32(0); i < uint32(width); i++ {
 			if g.dma[1].set(addr-0x0400_00bc+i, byte(val>>(8*i))) {
 				g.dmaTransfer(dmaImmediate)
 			}
 		}
+
 	case isDMA2IO(addr):
 		for i := uint32(0); i < uint32(width); i++ {
 			if g.dma[2].set(addr-0x0400_00c8+i, byte(val>>(8*i))) {
 				g.dmaTransfer(dmaImmediate)
 			}
 		}
+
 	case isDMA3IO(addr):
 		for i := uint32(0); i < uint32(width); i++ {
 			if g.dma[3].set(addr-0x0400_00d4+i, byte(val>>(8*i))) {
 				g.dmaTransfer(dmaImmediate)
 			}
 		}
+
 	case IsTimerIO(addr):
 		for i := uint32(0); i < uint32(width); i++ {
 			g.timers.SetIO(addr-0x0400_0100+i, byte(val>>(8*i)))
 		}
+
 	case addr == ram.KEYCNT:
 		for i := uint32(0); i < uint32(width); i++ {
 			g.joypad.Input[2+i] = byte(val >> (8 * i))
 		}
+
 	case addr == ram.IE:
 		for i := uint32(0); i < uint32(width); i++ {
 			g.RAM.Set8(addr+i, byte(val>>(8*i)))
 		}
 		g.checkIRQ()
+
 	case addr == ram.IF:
 		for i := uint32(0); i < uint32(width); i++ {
 			value := byte(g._getRAM(addr + i))
 			g.RAM.Set8(addr+i, value & ^byte(val>>(8*i)))
 		}
+
 	case addr == ram.IME:
 		g.RAM.Set8(addr, byte(val)&0b1)
 		g.checkIRQ()
+
 	case addr == ram.HALTCNT:
 		g.halt = true
+
 	case ram.Palette(addr):
 		ofs := ram.PaletteOffset(addr)
 		switch width {
@@ -198,6 +196,7 @@ func (g *GBA) _setRAM(addr uint32, val uint32, width int) {
 		case 4:
 			g.video.RenderPath.Palette.Store32(ofs, val)
 		}
+
 	case ram.VRAM(addr):
 		ofs := ram.VRAMOffset(addr)
 		switch width {
@@ -206,6 +205,7 @@ func (g *GBA) _setRAM(addr uint32, val uint32, width int) {
 		case 4:
 			g.video.RenderPath.VRAM.Store32(ofs, val)
 		}
+
 	case ram.OAM(addr):
 		ofs := ram.OAMOffset(addr)
 		switch width {
@@ -214,6 +214,7 @@ func (g *GBA) _setRAM(addr uint32, val uint32, width int) {
 		case 4:
 			g.video.RenderPath.OAM.Store32(ofs, val)
 		}
+
 	default:
 		for i := uint32(0); i < uint32(width); i++ {
 			g.RAM.Set8(addr+i, byte(val>>(8*i)))

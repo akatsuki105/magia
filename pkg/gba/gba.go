@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/pokemium/magia/pkg/cart"
-	"github.com/pokemium/magia/pkg/joypad"
-	"github.com/pokemium/magia/pkg/ram"
+	"github.com/pokemium/magia/pkg/gba/apu"
+	"github.com/pokemium/magia/pkg/gba/cart"
+	"github.com/pokemium/magia/pkg/gba/ram"
+	"github.com/pokemium/magia/pkg/gba/video"
 	"github.com/pokemium/magia/pkg/util"
-	"github.com/pokemium/magia/pkg/video"
 )
 
 const (
@@ -54,9 +54,9 @@ type GBA struct {
 	pipe       Pipe
 	timers     Timers
 	dma        [4]*DMA
-	joypad     joypad.Joypad
+	joypad     Joypad
 	DoSav      bool
-	apu        *APU
+	apu        *apu.APU
 }
 
 type Pipe struct {
@@ -70,7 +70,7 @@ type Inst struct {
 }
 
 // New GBA
-func New(src []byte, isDebug bool, mute bool) *GBA {
+func New(src []byte, soundBuf *[]byte, isDebug bool, mute bool) *GBA {
 	debug = isDebug
 	g := &GBA{
 		Reg:        *NewReg(),
@@ -78,22 +78,15 @@ func New(src []byte, isDebug bool, mute bool) *GBA {
 		CartHeader: cart.New(src),
 		RAM:        *ram.New(src),
 		dma:        NewDMA(),
-		apu:        newAPU(),
+		apu:        apu.New(),
 		timers:     newTimers(),
 	}
 	g._setRAM(ram.KEYINPUT, uint32(0x3ff), 2)
-	if !mute {
-		g.apu.play()
-	}
 	return g
 }
 
 func (g *GBA) Exit(s string) {
 	fmt.Printf("Exit: %s\n", s)
-	if debug {
-		g.PrintHistory()
-	}
-	g.apu.exit()
 	os.Exit(0)
 }
 
@@ -138,7 +131,6 @@ func (g *GBA) step() {
 			}
 		}
 
-		g.pushHistory()
 		for _, bk := range breakPoint {
 			if g.inst.loc == bk {
 				g.breakpoint()
@@ -212,8 +204,10 @@ func (g *GBA) Update() {
 		g.joypad.Read()
 	}
 
-	soundBufferWrap()
+	apu.SoundBufferWrap()
 	g.Frame++
+
+	g.apu.Play()
 }
 
 func (g *GBA) scanline() {
@@ -237,7 +231,7 @@ func (g *GBA) scanline() {
 	g.video.SetHBlank(true)
 	g.dmaTransfer(dmaHBlank)
 	g.exec(1232 - 1006)
-	g.soundClock(1232)
+	g.apu.SoundClock(1232)
 	g.video.SetHBlank(false)
 
 	vcount := g.video.RenderPath.Vcount
@@ -266,13 +260,6 @@ func (g *GBA) triggerIRQ(irq IRQID) {
 	g.RAM.IO[ram.IOOffset(ram.IF)], g.RAM.IO[ram.IOOffset(ram.IF+1)] = byte(iack), byte(iack>>8)
 
 	g.halt = false
-	if debug {
-		g.pushIRQHistory(IRQHistory{
-			irq:   irq,
-			start: g.inst.loc,
-			reg:   g.Reg,
-		})
-	}
 	g.checkIRQ()
 }
 
@@ -371,4 +358,13 @@ func (g *GBA) interwork() {
 		g.R[15] &= ^uint32(3)
 	}
 	g.pipelining()
+}
+
+func (g *GBA) SetJoypadHandler(h [10](func() bool)) {
+	hp := [10]*func() bool{&h[0], &h[1], &h[2], &h[3], &h[4], &h[5], &h[6], &h[7], &h[8], &h[9]}
+	g.joypad.SetHandler(hp)
+}
+
+func (g *GBA) SetAudioBuffer(s []byte) {
+	g.apu.SetBuffer(s)
 }

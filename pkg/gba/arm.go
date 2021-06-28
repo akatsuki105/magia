@@ -31,39 +31,39 @@ func (g *GBA) armStep() {
 func (g *GBA) armExec(inst uint32) {
 	if cond := Cond(inst >> 28); g.Check(cond) {
 		switch {
-		case isArmSWI(inst):
+		case IsArmSWI(inst):
 			g.armSWI(inst)
-		case isArmBL(inst):
+		case IsArmBL(inst):
 			g.armBL(inst)
-		case isArmB(inst):
+		case IsArmB(inst):
 			g.armB(inst)
-		case isArmBX(inst):
+		case IsArmBX(inst):
 			g.armBX(inst)
-		case isArmLDM(inst):
+		case IsArmLDM(inst):
 			g.armLDM(inst)
-		case isArmSTM(inst):
+		case IsArmSTM(inst):
 			g.armSTM(inst)
-		case isArmLDR(inst):
+		case IsArmLDR(inst):
 			g.armLDR(inst)
-		case isArmSTR(inst):
+		case IsArmSTR(inst):
 			g.armSTR(inst)
-		case isArmLDRH(inst):
+		case IsArmLDRH(inst):
 			g.armLDRH(inst)
-		case isArmLDRSB(inst):
+		case IsArmLDRSB(inst):
 			g.armLDRSB(inst)
-		case isArmLDRSH(inst):
+		case IsArmLDRSH(inst):
 			g.armLDRSH(inst)
-		case isArmSTRH(inst):
+		case IsArmSTRH(inst):
 			g.armSTRH(inst)
-		case isArmMRS(inst):
+		case IsArmMRS(inst):
 			g.armMRS(inst)
-		case isArmMSR(inst):
+		case IsArmMSR(inst):
 			g.armMSR(inst)
-		case isArmSWP(inst):
+		case IsArmSWP(inst):
 			g.Exit(fmt.Sprintf("SWI is unsupported in 0x%08x\n", g.inst.loc))
-		case isArmMPY(inst):
+		case IsArmMPY(inst):
 			g.armMPY(inst)
-		case isArmALU(inst):
+		case IsArmALU(inst):
 			g.armALU(inst)
 		default:
 			g.Exit(fmt.Sprintf("invalid ARM opcode(0x%08x) in 0x%08x\n", inst, g.inst.loc))

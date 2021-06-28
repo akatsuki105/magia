@@ -5,7 +5,7 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/pokemium/magia/pkg/ram"
+	"github.com/pokemium/magia/pkg/gba/ram"
 	"github.com/pokemium/magia/pkg/util"
 )
 
@@ -14,27 +14,6 @@ const (
 )
 
 var debug = false
-
-type History struct {
-	inst Inst
-	reg  Reg
-}
-
-type IRQHistory struct {
-	irq      IRQID
-	start    uint32
-	returnTo uint32
-	reg      Reg
-}
-
-const (
-	historySize    = 10
-	irqHistorySize = 10
-)
-
-// 0: oldest -> 9: newest
-var histories [historySize]History = [historySize]History{}
-var irqHistories [irqHistorySize]IRQHistory = [irqHistorySize]IRQHistory{}
 
 var breakPoint []uint32 = []uint32{
 	// 0x080006A8,
@@ -165,50 +144,9 @@ func (g *GBA) printRAM8(addr uint32) {
 	fmt.Printf("Word[0x%08x] => 0x%02x\n", addr, byte(value))
 }
 
-func (g *GBA) pushHistory() {
-	if g.inst.inst == 0 {
-		return
-	}
-	if g.halt {
-		return
-	}
-	if g.inst.loc == histories[historySize-1].inst.loc {
-		return
-	}
-
-	for i := 0; i < historySize-1; i++ {
-		histories[i] = histories[i+1]
-	}
-
-	histories[historySize-1] = History{g.inst, g.Reg}
-}
-func (g *GBA) pushIRQHistory(i IRQHistory) {
-	for i := 0; i < irqHistorySize-1; i++ {
-		irqHistories[i] = irqHistories[i+1]
-	}
-	irqHistories[irqHistorySize-1] = i
-}
-
-// PrintHistory print out histories
-func (g *GBA) PrintHistory() {
-	for i, h := range histories {
-		if h.reg.GetCPSRFlag(flagT) {
-			fmt.Printf("%d: 0x%08x in 0x%08x\n", i, h.inst.inst, h.inst.loc)
-		} else {
-			fmt.Printf("%d: %s(0x%08x) in 0x%08x\n", i, armDecode(h.inst.loc, h.inst.inst), h.inst.inst, h.inst.loc)
-		}
-		// printRegister(h.reg)
-	}
-}
-
 var irq2str = map[IRQID]string{irqVBlank: "Vblank", irqHBlank: "Hblank", irqVCount: "VCount", irqTimer0: "Timer0", irqTimer1: "Timer1", irqTimer2: "Timer2", irqTimer3: "Timer3", irqSerial: "Serial", irqDMA0: "DMA0", irqDMA1: "DMA1", irqDMA2: "DMA2", irqDMA3: "DMA3", irqKEY: "KEY", irqGamePak: "GamePak"}
 
 func (i IRQID) String() string { return irq2str[i] }
-
-func (ih IRQHistory) String() string {
-	mode := map[bool]string{true: "THUMB", false: "ARM"}[ih.reg.GetCPSRFlag(flagT)]
-	return fmt.Sprintf("IRQ(%s): 0x%08x -> 0x%08x on %s", ih.irq, ih.start, ih.returnTo, mode)
-}
 
 func (g *GBA) PanicHandler(place string, stack bool) {
 	if err := recover(); err != nil {
