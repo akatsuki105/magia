@@ -64,19 +64,19 @@ $ ./build/darwin-amd64/magia XXXX.gba
 | MOTHER1+2 | ✅ |
 | ポケットモンスター ファイアレッド | ✅ |
 
-
 ## Accuracy
 
 | Test             | Result      |
 | -- | -- | 
-| [gba-tests/arm](https://github.com/jsmolka/gba-tests/tree/a6447c5404c8fc2898ddc51f438271f832083b7e/arm) | 408 |
-| [gba-tests/thumb](https://github.com/jsmolka/gba-tests/tree/a6447c5404c8fc2898ddc51f438271f832083b7e/thumb) | 211 |
 | [Memory tests](https://github.com/mgba-emu/suite/blob/04ada216ee13c56d786e54636ac980a71d791145/src/memory.c) | 1102/1552 |
 | [I/O read tests](https://github.com/mgba-emu/suite/blob/04ada216ee13c56d786e54636ac980a71d791145/src/io-read.c) | 21/123 |
+| [Timing tests](https://github.com/mgba-emu/suite/blob/04ada216ee13c56d786e54636ac980a71d791145/src/timing.c) | --/1660 |
+| [Timer count-up tests](https://github.com/mgba-emu/suite/blob/04ada216ee13c56d786e54636ac980a71d791145/src/timers.c) | 326/936 |
+| [Timer IRQ tests](https://github.com/mgba-emu/suite/blob/04ada216ee13c56d786e54636ac980a71d791145/src/timer-irq.c) | 0/90 |
 | [Shifter tests](https://github.com/mgba-emu/suite/blob/04ada216ee13c56d786e54636ac980a71d791145/src/shifter.c) | 140/140 |
-| [Carry tests](https://github.com/mgba-emu/suite/blob/04ada216ee13c56d786e54636ac980a71d791145/src/carry.c) | 77/93 |
+| [Carry tests](https://github.com/mgba-emu/suite/blob/04ada216ee13c56d786e54636ac980a71d791145/src/carry.c) | 93/93 |
 | [Multiply long tests](https://github.com/mgba-emu/suite/blob/04ada216ee13c56d786e54636ac980a71d791145/src/multiply-long.c) | 52/72 |
-| [BIOS math tests](https://github.com/mgba-emu/suite/blob/04ada216ee13c56d786e54636ac980a71d791145/src/bios-math.c) | 530/625 |
+| [BIOS math tests](https://github.com/mgba-emu/suite/blob/04ada216ee13c56d786e54636ac980a71d791145/src/bios-math.c) | 625/625 |
 | [DMA tests](https://github.com/mgba-emu/suite/blob/04ada216ee13c56d786e54636ac980a71d791145/src/dma.c) | 964/1256 |
 | [Misc. edge case tests](https://github.com/mgba-emu/suite/blob/04ada216ee13c56d786e54636ac980a71d791145/src/misc-edge.c) | 5/10 |
 

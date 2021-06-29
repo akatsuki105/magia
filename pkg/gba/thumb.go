@@ -437,11 +437,8 @@ func (g *GBA) thumbCondBranch(inst uint16) {
 }
 
 func (g *GBA) thumbSWI(inst uint16) {
-	if debug {
-		nn := byte(inst)
-		g.printSWI(nn)
-	}
-	g.exception(swiVec, SWI)
+	nn := SysCall(inst)
+	g.swi(nn)
 }
 
 func (g *GBA) thumbB(inst uint16) {

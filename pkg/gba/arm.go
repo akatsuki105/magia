@@ -60,7 +60,7 @@ func (g *GBA) armExec(inst uint32) {
 		case IsArmMSR(inst):
 			g.armMSR(inst)
 		case IsArmSWP(inst):
-			g.Exit(fmt.Sprintf("SWI is unsupported in 0x%08x\n", g.inst.loc))
+			g.armSWP(inst)
 		case IsArmMPY(inst):
 			g.armMPY(inst)
 		case IsArmALU(inst):
@@ -72,11 +72,8 @@ func (g *GBA) armExec(inst uint32) {
 }
 
 func (g *GBA) armSWI(inst uint32) {
-	if debug {
-		nn := byte(inst >> 16)
-		g.printSWI(nn)
-	}
-	g.exception(swiVec, SWI)
+	nn := SysCall(inst >> 16)
+	g.swi(nn)
 }
 
 func (g *GBA) armB(inst uint32) {
@@ -538,9 +535,12 @@ func (g *GBA) armSBC(inst uint32) {
 }
 
 func (g *GBA) armRSC(inst uint32) {
-	carry := g.Carry()
+	carry := -1
+	if g.GetCPSRFlag(flagC) {
+		carry = 0
+	}
 	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
-	res := uint64(op2) - uint64(rnval) + (uint64(carry - 1))
+	res := uint64(int64(op2) - int64(rnval) + int64(carry))
 	g.R[rd] = uint32(res)
 	g.armArithSubSet(rd, util.Bit(inst, 20), op2, rnval, res, false)
 }
@@ -591,6 +591,20 @@ func (g *GBA) armMVN(inst uint32) {
 	rd, op2 := inst>>12&0b1111, g.armALUOp2(inst)
 	g.R[rd] = ^op2
 	g.armLogicSet(rd, util.Bit(inst, 20), g.R[rd], false)
+}
+
+func (g *GBA) armSWP(inst uint32) {
+	rn, rd, rm := (inst>>16)&0b1111, (inst>>12)&0b1111, inst&0b1111
+	byteUnit := util.Bit(inst, 22)
+	if byteUnit {
+		d := uint32(g.getRAM8(g.R[rn], false))
+		g.setRAM8(g.R[rn], byte(g.R[rm]), false)
+		g.R[rd] = d
+	} else {
+		d := g.getRAM32(g.R[rn], false)
+		g.setRAM32(g.R[rn], g.R[rm], false)
+		g.R[rd] = d
+	}
 }
 
 func (g *GBA) armMPY(inst uint32) {

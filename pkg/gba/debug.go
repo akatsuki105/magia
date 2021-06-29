@@ -85,31 +85,6 @@ func printRegister(r Reg) {
 	fmt.Printf(str, r.R[0], r.R[1], r.R[2], r.R[3], r.R[4], r.R[5], r.R[6], r.R[7], r.R[8], r.R[9], r.R[10], r.R[11], r.R[12], r.R[13], r.R[14], r.R[15])
 }
 
-func (g *GBA) printSWI(nn byte) {
-	mode := map[bool]string{true: "THUMB", false: "ARM"}[g.Reg.GetCPSRFlag(flagT)]
-	switch nn {
-	case 0x05:
-		// fmt.Printf("%s.VBlankIntrWait() in 0x%08x\n", mode, g.inst.loc)
-	case 0x06:
-		fmt.Printf("%s.Div(0x%x, 0x%x, 0x%x) in 0x%08x\n", mode, g.R[0], g.R[1], g.R[3], g.inst.loc)
-	case 0x07:
-		fmt.Printf("%s.DivArm(0x%x, 0x%x, 0x%x) in 0x%08x\n", mode, g.R[0], g.R[1], g.R[3], g.inst.loc)
-	case 0x08:
-		fmt.Printf("%s.Sqrt(0x%x) in 0x%08x\n", mode, g.R[0], g.inst.loc)
-	case 0x0b:
-		// fmt.Printf("%s.CPUSet(0x%x, 0x%x, 0x%x) in 0x%08x\n", mode, g.R[0], g.R[1], g.R[2], g.inst.loc)
-		fmt.Printf("%s.%s\n", mode, g.outputCPUSet())
-	case 0x0c:
-		fmt.Printf("%s.CPUFastSet(0x%x, 0x%x, 0x%x) in 0x%08x\n", mode, g.R[0], g.R[1], g.R[2], g.inst.loc)
-	case 0x0e:
-		fmt.Printf("%s.BgAffineSet(0x%x, 0x%x, 0x%x) in 0x%08x\n", mode, g.R[0], g.R[1], g.R[2], g.inst.loc)
-	case 0x0f:
-		fmt.Printf("%s.ObjAffineSet(0x%x, 0x%x, 0x%x, 0x%x) in 0x%08x\n", mode, g.R[0], g.R[1], g.R[2], g.R[3], g.inst.loc)
-	default:
-		fmt.Printf("%s.SWI(0x%x) in 0x%08x\n", mode, nn, g.inst.loc)
-	}
-}
-
 func (g *GBA) outputCPUSet() string {
 	size := g.R[2] & 0b1_1111_1111_1111_1111_1111
 	if util.Bit(g.R[2], 26) {

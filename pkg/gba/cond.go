@@ -33,7 +33,7 @@ func (c Cond) String() string {
 	if s, ok := cond2str[c]; ok {
 		return s
 	}
-	return "unk"
+	return ""
 }
 
 // Check returns if instruction condition is ok

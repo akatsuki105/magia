@@ -7,6 +7,7 @@ import (
 	"github.com/pokemium/magia/pkg/gba/apu"
 	"github.com/pokemium/magia/pkg/gba/cart"
 	"github.com/pokemium/magia/pkg/gba/ram"
+	"github.com/pokemium/magia/pkg/gba/timer"
 	"github.com/pokemium/magia/pkg/gba/video"
 	"github.com/pokemium/magia/pkg/util"
 )
@@ -52,7 +53,7 @@ type GBA struct {
 	Frame      uint
 	halt       bool
 	pipe       Pipe
-	timers     Timers
+	timers     timer.Timers
 	dma        [4]*DMA
 	joypad     Joypad
 	DoSav      bool
@@ -79,7 +80,7 @@ func New(src []byte, soundBuf *[]byte, isDebug bool, mute bool) *GBA {
 		RAM:        *ram.New(src),
 		dma:        NewDMA(),
 		apu:        apu.New(),
-		timers:     newTimers(),
+		timers:     timer.New(),
 	}
 	g._setRAM(ram.KEYINPUT, uint32(0x3ff), 2)
 	return g
@@ -358,6 +359,27 @@ func (g *GBA) interwork() {
 		g.R[15] &= ^uint32(3)
 	}
 	g.pipelining()
+}
+
+func (g *GBA) timer(c int) {
+	if inExec {
+		accumulatedCycles += c
+		return
+	}
+	if c == 0 {
+		return
+	}
+
+	g.cycle += c
+	if timer.Enable == 0 {
+		return
+	}
+	irqs := g.timers.Tick(c, uint16(g.apu.Load32(apu.SOUNDCNT_H)), func(ch int) { g.dmaTransferFifo(ch) })
+	for i, irq := range irqs {
+		if irq {
+			g.triggerIRQ(irqTimer0 + IRQID(i))
+		}
+	}
 }
 
 func (g *GBA) SetJoypadHandler(h [10](func() bool)) {

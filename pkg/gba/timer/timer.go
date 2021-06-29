@@ -1,8 +1,7 @@
-package gba
+package timer
 
 import (
 	"github.com/pokemium/magia/pkg/gba/apu"
-	"github.com/pokemium/magia/pkg/gba/ram"
 	"github.com/pokemium/magia/pkg/util"
 )
 
@@ -11,100 +10,11 @@ const (
 	SoundBTimer = 14
 )
 
-var (
-	wsN  = [4]int{4, 3, 2, 8}
-	wsS0 = [2]int{2, 1}
-	wsS1 = [2]int{4, 1}
-	wsS2 = [2]int{8, 1}
-)
-
-var timerEnable byte = 0
-
-func (g *GBA) cycleN(addr uint32) int {
-	switch {
-	case ram.EWRAM(addr):
-		return 3
-	case ram.GamePak0(addr):
-		offset := ram.IOOffset(ram.WAITCNT)
-		idx := g.RAM.IO[offset] >> 2 & 0b11
-		return wsN[idx] + 1
-	case ram.GamePak1(addr):
-		idx := g._getRAM(ram.WAITCNT) >> 5 & 0b11
-		return wsN[idx] + 1
-	case ram.GamePak2(addr):
-		idx := g._getRAM(ram.WAITCNT) >> 8 & 0b11
-		return wsN[idx] + 1
-	case ram.SRAM(addr):
-		idx := g._getRAM(ram.WAITCNT) & 0b11
-		return wsN[idx] + 1
-	}
-	return 1
-}
-
-func (g *GBA) cycleS(addr uint32) int {
-	switch {
-	case ram.EWRAM(addr):
-		return 3
-	case ram.GamePak0(addr):
-		offset := ram.IOOffset(ram.WAITCNT)
-		idx := g.RAM.IO[offset] >> 4 & 0b1
-		return wsS0[idx] + 1
-	case ram.GamePak1(addr):
-		idx := g._getRAM(ram.WAITCNT) >> 7 & 0b1
-		return wsS1[idx] + 1
-	case ram.GamePak2(addr):
-		idx := g._getRAM(ram.WAITCNT) >> 10 & 0b1
-		return wsS2[idx] + 1
-	case ram.SRAM(addr):
-		idx := g._getRAM(ram.WAITCNT) & 0b11
-		return wsN[idx] + 1
-	}
-	return 1
-}
-
-func (g *GBA) waitBus(addr uint32, size int, s bool) int {
-	busWidth := ram.BusWidth(addr)
-	if busWidth == 8 {
-		return 5 * (size / 8)
-	}
-
-	if size > busWidth {
-		if s {
-			return 2 * g.cycleS(addr)
-		}
-		return g.cycleN(addr) + g.cycleS(addr+2)
-	}
-
-	if s {
-		return g.cycleS(addr)
-	}
-	return g.cycleN(addr)
-}
-
-func (g *GBA) timer(c int) {
-	if inExec {
-		accumulatedCycles += c
-		return
-	}
-	if c == 0 {
-		return
-	}
-
-	g.cycle += c
-	if timerEnable == 0 {
-		return
-	}
-	irqs := g.Tick(c)
-	for i, irq := range irqs {
-		if irq {
-			g.triggerIRQ(irqTimer0 + IRQID(i))
-		}
-	}
-}
+var Enable byte = 0
 
 type Timers [4]*Timer
 
-func newTimers() Timers { return Timers{&Timer{}, &Timer{}, &Timer{}, &Timer{}} }
+func New() Timers { return Timers{&Timer{}, &Timer{}, &Timer{}, &Timer{}} }
 
 type Timer struct {
 	Count   uint16
@@ -152,9 +62,9 @@ func (ts *Timers) SetIO(offset uint32, b byte) {
 		ts[idx].Reload = (ts[idx].Reload & 0xff) | (uint16(b) << 8)
 	case 2:
 		if util.Bit(b, 7) {
-			timerEnable |= (1 << idx)
+			Enable |= (1 << idx)
 		} else {
-			timerEnable &= ^(1 << idx)
+			Enable &= ^(1 << idx)
 		}
 		previous := util.Bit(ts[idx].Control, 7)
 		ts[idx].Control = b
@@ -168,11 +78,8 @@ func (ts *Timers) SetIO(offset uint32, b byte) {
 
 var clockShift = [4]byte{0, 6, 8, 10}
 
-func (g *GBA) Tick(cycles int) [4]bool {
+func (ts *Timers) Tick(cycles int, cnth uint16, dma func(ch int)) [4]bool {
 	overflow, irq := false, [4]bool{}
-	ts := &g.timers
-	cnth := uint16(g.apu.Load32(apu.SOUNDCNT_H))
-
 	for i := 0; i < 4; i++ {
 		if !ts[i].enable() {
 			overflow = false
@@ -196,13 +103,13 @@ func (g *GBA) Tick(cycles int) [4]bool {
 				if (cnth>>SoundATimer)&0b1 == uint16(i) {
 					apu.FifoALoad()
 					if apu.FifoALen <= 0x10 {
-						g.dmaTransferFifo(1)
+						dma(1)
 					}
 				}
 				if (cnth>>SoundBTimer)&0b1 == uint16(i) {
 					apu.FifoBLoad()
 					if apu.FifoBLen <= 0x10 {
-						g.dmaTransferFifo(2)
+						dma(2)
 					}
 				}
 

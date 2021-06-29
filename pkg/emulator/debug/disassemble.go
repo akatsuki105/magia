@@ -33,7 +33,7 @@ func DissasembleArm(pc, inst uint32) string {
 	case gba.IsArmMSR(inst):
 		return disassembleArmMSR(inst)
 	case gba.IsArmSWP(inst):
-		return fmt.Sprintf("SWI is unsupported in 0x%08x", pc)
+		return disassembleArmSWP(inst)
 	case gba.IsArmMPY(inst):
 		return disassembleArmMPY(inst)
 	case gba.IsArmALU(inst):
@@ -44,18 +44,19 @@ func DissasembleArm(pc, inst uint32) string {
 }
 
 func disassembleArmBranch(pc, inst uint32) string {
+	cond := gba.Cond(inst >> 28)
 	switch {
 	case gba.IsArmBX(inst):
 		rn := inst & 0b1111
-		return fmt.Sprintf("bx r%d", rn)
+		return fmt.Sprintf("bx%s r%d", cond, rn)
 	case util.Bit(inst, 24):
 		nn := int32(inst)
 		nn = (nn << 8) >> 6
-		return fmt.Sprintf("bl 0x%08x", util.AddInt32(pc+8, nn))
+		return fmt.Sprintf("bl%s 0x%08x", cond, util.AddInt32(pc+8, nn))
 	default:
 		nn := int32(inst)
 		nn = (nn << 8) >> 6
-		return fmt.Sprintf("b 0x%08x", util.AddInt32(pc+8, nn))
+		return fmt.Sprintf("b%s 0x%08x", cond, util.AddInt32(pc+8, nn))
 	}
 }
 
@@ -180,6 +181,7 @@ func disassembleArmMRS(inst uint32) string {
 	rd := (inst >> 12) & 0b1111
 	return fmt.Sprintf("mrs %d,psr", rd)
 }
+
 func disassembleArmMSR(inst uint32) string {
 	psr := "cpsr"
 	if util.Bit(inst, 22) {
@@ -206,6 +208,18 @@ func disassembleArmMSR(inst uint32) string {
 		rm := inst & 0b1111
 		return fmt.Sprintf("msr %s,r%d", psr, rm)
 	}
+}
+
+func disassembleArmSWP(inst uint32) string {
+	rn, rd, rm := (inst>>16)&0b1111, (inst>>12)&0b1111, inst&0b1111
+
+	suffix := ""
+	byteUnit := util.Bit(inst, 22)
+	if byteUnit {
+		suffix = "b"
+	}
+
+	return fmt.Sprintf("swp%s r%d,r%d,[r%d]", suffix, rd, rm, rn)
 }
 
 func disassembleArmMPY(inst uint32) string {
@@ -238,6 +252,7 @@ func disassembleArmMPY(inst uint32) string {
 var aluOp2str = map[uint32]string{0x0: "and", 0x1: "eor", 0x2: "sub", 0x3: "rsb", 0x4: "add", 0x5: "adc", 0x6: "sbc", 0x7: "rsc", 0x8: "tst", 0x9: "teq", 0xa: "cmp", 0xb: "cmn", 0xc: "orr", 0xd: "mov", 0xe: "bic", 0xf: "mvn"}
 
 func disassembleArmALU(inst uint32) string {
+	cond := gba.Cond(inst >> 28)
 	opcode := aluOp2str[inst>>21&0b1111]
 	rd := inst >> 12 & 0b1111
 	rn := (inst >> 16) & 0b1111
@@ -264,10 +279,10 @@ func disassembleArmALU(inst uint32) string {
 
 	switch inst >> 21 & 0b1111 {
 	case 0, 1, 2, 3, 4, 5, 6, 7, 0xc, 0xe:
-		return fmt.Sprintf("%s r%d,r%d,%s", opcode, rd, rn, op2)
+		return fmt.Sprintf("%s%s r%d,r%d,%s", opcode, cond, rd, rn, op2)
 	case 8, 9, 0xa, 0xb:
-		return fmt.Sprintf("%s r%d,%s", opcode, rn, op2)
+		return fmt.Sprintf("%s%s r%d,%s", opcode, cond, rn, op2)
 	default:
-		return fmt.Sprintf("%s r%d,%s", opcode, rd, op2)
+		return fmt.Sprintf("%s%s r%d,%s", opcode, cond, rd, op2)
 	}
 }
