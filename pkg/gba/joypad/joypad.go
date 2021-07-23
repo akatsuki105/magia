@@ -1,4 +1,4 @@
-package gba
+package joypad
 
 import (
 	"github.com/pokemium/magia/pkg/util"
@@ -22,7 +22,7 @@ type Joypad struct {
 	handler [10](func() bool)
 }
 
-func newJoypad(joypadHandlers [10]func() bool) *Joypad {
+func New(joypadHandlers [10]func() bool) *Joypad {
 	return &Joypad{
 		handler: joypadHandlers,
 	}

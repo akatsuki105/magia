@@ -7,6 +7,7 @@ import (
 
 	"github.com/pokemium/magia/pkg/gba/apu"
 	"github.com/pokemium/magia/pkg/gba/cart"
+	"github.com/pokemium/magia/pkg/gba/joypad"
 	"github.com/pokemium/magia/pkg/gba/ram"
 	"github.com/pokemium/magia/pkg/gba/timer"
 	"github.com/pokemium/magia/pkg/gba/video"
@@ -56,7 +57,7 @@ type GBA struct {
 	pipe       Pipe
 	timers     timer.Timers
 	dma        [4]*DMA
-	joypad     *Joypad
+	joypad     *joypad.Joypad
 	DoSav      bool
 	Sound      *apu.APU
 }
@@ -81,7 +82,7 @@ func New(src []byte, j [10]func() bool, audioStream []byte) *GBA {
 		dma:        NewDMA(),
 		Sound:      apu.New(true, audioStream),
 		timers:     timer.New(),
-		joypad:     newJoypad(j),
+		joypad:     joypad.New(j),
 	}
 	g._setRAM(ram.KEYINPUT, uint32(0x3ff), 2)
 	g.softReset()
