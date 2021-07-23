@@ -4,29 +4,36 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/pokemium/magia/pkg/emulator/audio"
 	"github.com/pokemium/magia/pkg/gba"
 )
 
+var (
+	second = time.NewTicker(time.Second)
+)
+
 type Emulator struct {
-	GBA *gba.GBA
-	Rom string
+	GBA    *gba.GBA
+	Rom    []byte
+	RomDir string
 }
 
 func New(romData []byte, romDir string) *Emulator {
 	g := gba.New(romData)
 	e := &Emulator{
-		GBA: g,
-		Rom: romDir,
+		GBA:    g,
+		Rom:    romData,
+		RomDir: romDir,
 	}
-	e.setupCloseHandler()
 
 	// setup audio
 	audio.Reset(&g.Sound.Enable)
 	e.GBA.SetAudioBuffer(audio.Stream)
 
+	e.setupCloseHandler()
 	e.loadSav()
 	return e
 }
@@ -35,8 +42,13 @@ func (e *Emulator) Update() error {
 	defer e.GBA.PanicHandler("core", true)
 	e.GBA.Update()
 	audio.Play()
-	if e.GBA.DoSav && e.GBA.Frame%60 == 0 {
-		e.writeSav()
+
+	select {
+	case <-second.C:
+		if e.GBA.DoSav {
+			e.writeSav()
+		}
+	default:
 	}
 	return nil
 }

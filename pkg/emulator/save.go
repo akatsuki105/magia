@@ -6,7 +6,7 @@ import (
 )
 
 func (e *Emulator) writeSav() {
-	path := strings.ReplaceAll(e.Rom, ".gba", ".sav")
+	path := strings.ReplaceAll(e.RomDir, ".gba", ".sav")
 	if e.GBA.RAM.HasFlash {
 		os.WriteFile(path, e.GBA.RAM.Flash[:], os.ModePerm)
 	} else {
@@ -16,7 +16,7 @@ func (e *Emulator) writeSav() {
 }
 
 func (e *Emulator) loadSav() {
-	path := strings.ReplaceAll(e.Rom, ".gba", ".sav")
+	path := strings.ReplaceAll(e.RomDir, ".gba", ".sav")
 	if f, err := os.Stat(path); os.IsNotExist(err) || f.IsDir() {
 		return
 	} else if sav, err := os.ReadFile(path); err == nil {
