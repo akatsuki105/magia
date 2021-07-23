@@ -100,9 +100,6 @@ func (g *GBA) Exit(s string) {
 	os.Exit(0)
 }
 
-var inExec = false
-var accumulatedCycles = 0
-
 func (g *GBA) exec(cycles int) {
 	if g.halt {
 		tmp := g.cycle
@@ -112,14 +109,13 @@ func (g *GBA) exec(cycles int) {
 	}
 
 	for g.cycle < cycles {
-		inExec = true
+		g.timers.InExec = true
 		g.step()
-		inExec = false
+		g.timers.InExec = false
 		if g.halt {
 			g.tick(cycles - g.cycle)
 		} else {
-			g.tick(accumulatedCycles)
-			accumulatedCycles = 0
+			g.tick(0)
 		}
 	}
 	g.cycle -= cycles
@@ -334,14 +330,6 @@ func (g *GBA) interwork() {
 }
 
 func (g *GBA) tick(c int) {
-	if inExec {
-		accumulatedCycles += c
-		return
-	}
-	if c == 0 {
-		return
-	}
-
 	g.cycle += c
 	irqs := g.timers.Tick(c)
 	for i, irq := range irqs {
