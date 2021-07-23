@@ -47,15 +47,6 @@ func NewReg() *Reg {
 	return reg
 }
 
-func (r *Reg) softReset() {
-	r.R[15] = 0x0000_00ac
-	cpsr := uint32(0)
-	cpsr |= SWI
-	cpsr |= 1 << 6
-	cpsr |= 1 << 7
-	r.CPSR = cpsr
-}
-
 var bankIdx = map[Mode]int{FIQ: 1, IRQ: 2, SWI: 3, ABT: 4, UND: 5, USR: 0, SYS: 0}
 
 // SetCPSRFlag sets CPSR flag

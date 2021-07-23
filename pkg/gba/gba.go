@@ -135,11 +135,6 @@ func (g *GBA) Reset() {
 	g.pipelining()
 }
 
-func (g *GBA) SoftReset() {
-	g._setRAM(ram.DISPCNT, uint32(0x80), 2)
-	g.exception(swiVec, SWI)
-}
-
 func (g *GBA) exception(addr uint32, mode Mode) {
 	cpsr := g.CPSR
 	g.setPrivMode(mode)
