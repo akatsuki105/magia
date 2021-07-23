@@ -20,6 +20,14 @@ func (e *Emulator) loadSav() {
 	if f, err := os.Stat(path); os.IsNotExist(err) || f.IsDir() {
 		return
 	} else if sav, err := os.ReadFile(path); err == nil {
-		e.GBA.LoadSav(sav)
+		if len(sav) > 65536*2 {
+			return
+		}
+		for i, b := range sav {
+			if i < 65536 {
+				e.GBA.RAM.SRAM[i] = b
+			}
+			e.GBA.RAM.Flash[i] = b
+		}
 	}
 }

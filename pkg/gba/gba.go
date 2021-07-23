@@ -130,12 +130,6 @@ func (g *GBA) step() {
 	}
 }
 
-func (g *GBA) Reset() {
-	g.R[13] = 0x03007f00
-	g.CPSR = 0x1f
-	g.pipelining()
-}
-
 func (g *GBA) exception(addr uint32, mode Mode) {
 	cpsr := g.CPSR
 	g.setPrivMode(mode)
@@ -311,18 +305,6 @@ func (g *GBA) CartInfo() string {
 	str := `%s
 ROM size: %s`
 	return fmt.Sprintf(str, g.CartHeader, util.FormatSize(uint(g.RAM.ROMSize)))
-}
-
-func (g *GBA) LoadSav(bs []byte) {
-	if len(bs) > 65536*2 {
-		return
-	}
-	for i, b := range bs {
-		if i < 65536 {
-			g.RAM.SRAM[i] = b
-		}
-		g.RAM.Flash[i] = b
-	}
 }
 
 func (g *GBA) in(addr, start, end uint32) bool {
