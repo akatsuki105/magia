@@ -85,13 +85,13 @@ func (ts *Timers) Tick(cycles int) [4]bool {
 
 	overflow, irq := false, [4]bool{}
 	for i := 0; i < 4; i++ {
-		if !ts.timers[i].enable() {
+		if !util.Bit(ts.timers[i].Control, ControlEnable) {
 			overflow = false
 			continue
 		}
 
 		inc := 0
-		if i > 0 && ts.timers[i].cascade() {
+		if i > 0 && util.Bit(ts.timers[i].Control, ControlCascade) {
 			if overflow {
 				inc = 1
 			}
