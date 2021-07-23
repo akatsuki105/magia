@@ -246,13 +246,13 @@ func (g *GBA) armRegShiftOffset(inst uint32) uint32 {
 		rm := inst & 0b1111
 		switch shiftType := inst >> 5 & 0b11; shiftType {
 		case lsl:
-			ofs = g.lsl(g.R[rm], is, false, true)
+			ofs = lslArm(g.R[rm], is, g.Carry(false), true)
 		case lsr:
-			ofs = g.lsr(g.R[rm], is, false, true)
+			ofs = lsrArm(g.R[rm], is, g.Carry(false), true)
 		case asr:
-			ofs = g.asr(g.R[rm], is, false, true)
+			ofs = asrArm(g.R[rm], is, g.Carry(false), true)
 		case ror:
-			ofs = g.ror(g.R[rm], is, false, true)
+			ofs = rorArm(g.R[rm], is, g.Carry(false), true)
 		}
 	} else {
 		ofs = inst & 0b1111_1111_1111 // I = 0 immediate
@@ -366,13 +366,13 @@ func (g *GBA) armALUOp2(inst uint32) uint32 {
 		carryMut := util.Bit(inst, 20)
 		switch shiftType := (inst >> 5) & 0b11; shiftType {
 		case lsl:
-			return g.lsl(g.R[rm]+salt, is, carryMut, !isRegister)
+			return lslArm(g.R[rm]+salt, is, g.Carry(carryMut), !isRegister)
 		case lsr:
-			return g.lsr(g.R[rm]+salt, is, carryMut, !isRegister)
+			return lsrArm(g.R[rm]+salt, is, g.Carry(carryMut), !isRegister)
 		case asr:
-			return g.asr(g.R[rm]+salt, is, carryMut, !isRegister)
+			return asrArm(g.R[rm]+salt, is, g.Carry(carryMut), !isRegister)
 		case ror:
-			return g.ror(g.R[rm]+salt, is, carryMut, !isRegister)
+			return rorArm(g.R[rm]+salt, is, g.Carry(carryMut), !isRegister)
 		}
 		return g.R[rm] + salt
 	}
@@ -381,7 +381,7 @@ func (g *GBA) armALUOp2(inst uint32) uint32 {
 	op2 := inst & 0b1111_1111
 	is := uint32((inst>>8)&0b1111) * 2
 	carryMut := util.Bit(inst, 20)
-	op2 = g.ror(op2, is, carryMut, false)
+	op2 = rorArm(op2, is, g.Carry(carryMut), false)
 	return op2
 }
 
@@ -519,7 +519,7 @@ func (g *GBA) armADD(inst uint32) {
 }
 
 func (g *GBA) armADC(inst uint32) {
-	carry := g.Carry()
+	carry := g.CarryU32()
 	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
 	res := uint64(rnval) + uint64(op2) + uint64(carry)
 	g.R[rd] = uint32(res)
@@ -527,7 +527,7 @@ func (g *GBA) armADC(inst uint32) {
 }
 
 func (g *GBA) armSBC(inst uint32) {
-	carry := g.Carry()
+	carry := g.CarryU32()
 	rd, rnval, op2 := inst>>12&0b1111, g.armALURn(inst), g.armALUOp2(inst)
 	res := uint64(rnval) - uint64(op2) + (uint64(carry) - 1)
 	g.R[rd] = uint32(res)

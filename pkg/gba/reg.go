@@ -65,11 +65,21 @@ func (r *Reg) GetCPSRFlag(idx int) bool {
 	return util.Bit(r.CPSR, idx)
 }
 
-func (r *Reg) Carry() uint32 {
+func (r *Reg) CarryU32() uint32 {
 	if r.GetCPSRFlag(flagC) {
 		return 1
 	}
 	return 0
+}
+
+func (r *Reg) Carry(mutable bool) Carry {
+	return Carry{
+		carry:   r.CarryU32(),
+		mutable: mutable,
+		set: func(c bool) {
+			r.SetCPSRFlag(flagC, c)
+		},
+	}
 }
 
 // getPrivMode get Processor mode

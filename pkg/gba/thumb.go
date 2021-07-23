@@ -71,11 +71,11 @@ func (g *GBA) thumbShift(inst uint16) {
 	is, rs, rd := uint32((inst>>6)&0b11111), (inst>>3)&0b111, inst&0b111
 	switch opcode := (inst >> 11) & 0b11; opcode {
 	case 0:
-		g.R[rd] = g.lsl(g.R[rs], is, true, true)
+		g.R[rd] = lslArm(g.R[rs], is, g.Carry(true), true)
 	case 1:
-		g.R[rd] = g.lsr(g.R[rs], is, true, true)
+		g.R[rd] = lsrArm(g.R[rs], is, g.Carry(true), true)
 	case 2:
-		g.R[rd] = g.asr(g.R[rs], is, true, true)
+		g.R[rd] = asrArm(g.R[rs], is, g.Carry(true), true)
 	}
 	g.armLogicSet(uint32(rd), true, g.R[rd], false)
 }
@@ -138,21 +138,21 @@ func (g *GBA) thumbALU(inst uint16) {
 		g.armLogicSet(uint32(rd), true, g.R[rd], false)
 	case 2: // LSL
 		is := g.R[rs] & 0xff
-		g.R[rd] = g.lsl(g.R[rd], is, is > 0, false) // Rd = Rd << (Rs AND 0FFh)
+		g.R[rd] = lslArm(g.R[rd], is, g.Carry(is > 0), false) // Rd = Rd << (Rs AND 0FFh)
 		g.timer(1)
 		g.armLogicSet(uint32(rd), true, g.R[rd], false)
 	case 3: // LSR
 		is := g.R[rs] & 0xff
-		g.R[rd] = g.lsr(g.R[rd], is, is > 0, false) // Rd = Rd >> (Rs AND 0FFh)
+		g.R[rd] = lsrArm(g.R[rd], is, g.Carry(is > 0), false) // Rd = Rd >> (Rs AND 0FFh)
 		g.timer(1)
 		g.armLogicSet(uint32(rd), true, g.R[rd], false)
 	case 4: // ASR
 		is := g.R[rs] & 0xff
-		g.R[rd] = g.asr(g.R[rd], is, is > 0, false) // Rd = Rd >> (Rs AND 0FFh)
+		g.R[rd] = asrArm(g.R[rd], is, g.Carry(is > 0), false) // Rd = Rd >> (Rs AND 0FFh)
 		g.timer(1)
 		g.armLogicSet(uint32(rd), true, g.R[rd], false)
 	case 5: // ADC
-		res := uint64(lhs) + uint64(rhs) + uint64(g.Carry())
+		res := uint64(lhs) + uint64(rhs) + uint64(g.CarryU32())
 		g.R[rd] = uint32(res) // Rd = Rd + Rs + Carry
 		g.armArithAddSet(uint32(rd), true, lhs, rhs, res, false)
 	case 6: // SBC
@@ -161,7 +161,7 @@ func (g *GBA) thumbALU(inst uint16) {
 		g.armArithSubSet(uint32(rd), true, lhs, rhs, res, false)
 	case 7: // ROR
 		is := g.R[rs] & 0xff
-		g.R[rd] = g.ror(g.R[rd], is, is > 0, false) // Rd = Rd ROR (Rs AND 0FFh)
+		g.R[rd] = rorArm(g.R[rd], is, g.Carry(is > 0), false) // Rd = Rd ROR (Rs AND 0FFh)
 		g.timer(1)
 		g.armLogicSet(uint32(rd), true, g.R[rd], false)
 	case 8: // TST
