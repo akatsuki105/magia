@@ -82,7 +82,6 @@ func Run() ExitCode {
 	}
 
 	emu.GBA.SetJoypadHandler(joypad.Handler)
-	emu.LoadSav()
 	if *showBIOSIntro {
 		emu.GBA.Reset()
 	} else {

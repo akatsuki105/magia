@@ -3,6 +3,7 @@ package gba
 import (
 	"fmt"
 	"os"
+	"runtime"
 
 	"github.com/pokemium/magia/pkg/gba/apu"
 	"github.com/pokemium/magia/pkg/gba/cart"
@@ -72,7 +73,6 @@ type Inst struct {
 
 // New GBA
 func New(src []byte, soundBuf *[]byte, isDebug bool, mute bool) *GBA {
-	debug = isDebug
 	g := &GBA{
 		Reg:        *NewReg(),
 		video:      video.NewVideo(),
@@ -116,28 +116,9 @@ func (g *GBA) exec(cycles int) {
 	g.cycle -= cycles
 }
 
-var counter = 0
-
 func (g *GBA) step() {
 	g.inst = g.pipe.inst[0]
 	g.pipe.inst[0] = g.pipe.inst[1]
-
-	if debug {
-		// Because sprintf crashes emulator in suite.gba, skip this.
-		if g.inst.loc == 0x08001efa {
-			fmt.Printf("%d/%d\n", g.R[2], g.R[3])
-			g.pipe.inst[0] = Inst{
-				inst: uint32(g.getRAM16(0x08001efe, true)),
-				loc:  0x08001efe,
-			}
-		}
-
-		for _, bk := range breakPoint {
-			if g.inst.loc == bk {
-				g.breakpoint()
-			}
-		}
-	}
 
 	if g.GetCPSRFlag(flagT) {
 		g.thumbStep()
@@ -389,4 +370,18 @@ func (g *GBA) SetJoypadHandler(h [10](func() bool)) {
 
 func (g *GBA) SetAudioBuffer(s []byte) {
 	g.apu.SetBuffer(s)
+}
+
+func (g *GBA) PanicHandler(place string, stack bool) {
+	if err := recover(); err != nil {
+		fmt.Fprintf(os.Stderr, "%s emulation error: %s in 0x%08x\n", place, err, g.inst.loc)
+		for depth := 0; ; depth++ {
+			_, file, line, ok := runtime.Caller(depth)
+			if !ok {
+				break
+			}
+			fmt.Printf("======> %d: %v:%d\n", depth, file, line)
+		}
+		g.Exit("")
+	}
 }

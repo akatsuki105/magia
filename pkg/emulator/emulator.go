@@ -3,7 +3,6 @@ package emulator
 import (
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -27,6 +26,7 @@ func New(g *gba.GBA, r string) *Emulator {
 	audio.Init()
 	e.GBA.SetAudioBuffer(audio.Stream)
 
+	e.loadSav()
 	return e
 }
 
@@ -35,7 +35,7 @@ func (e *Emulator) Update() error {
 	e.GBA.Update()
 	audio.Play()
 	if e.GBA.DoSav && e.GBA.Frame%60 == 0 {
-		e.WriteSav()
+		e.writeSav()
 	}
 	return nil
 }
@@ -57,23 +57,4 @@ func (e *Emulator) setupCloseHandler() {
 		e.GBA.Exit("Ctrl+C pressed in Terminal")
 		os.Exit(0)
 	}()
-}
-
-func (e *Emulator) WriteSav() {
-	path := strings.ReplaceAll(e.Rom, ".gba", ".sav")
-	if e.GBA.RAM.HasFlash {
-		os.WriteFile(path, e.GBA.RAM.Flash[:], os.ModePerm)
-	} else {
-		os.WriteFile(path, e.GBA.RAM.SRAM[:], os.ModePerm)
-	}
-	e.GBA.DoSav = false
-}
-
-func (e *Emulator) LoadSav() {
-	path := strings.ReplaceAll(e.Rom, ".gba", ".sav")
-	if f, err := os.Stat(path); os.IsNotExist(err) || f.IsDir() {
-		return
-	} else if sav, err := os.ReadFile(path); err == nil {
-		e.GBA.LoadSav(sav)
-	}
 }
