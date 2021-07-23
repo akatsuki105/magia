@@ -246,13 +246,13 @@ func (g *GBA) armRegShiftOffset(inst uint32) uint32 {
 		rm := inst & 0b1111
 		switch shiftType := inst >> 5 & 0b11; shiftType {
 		case lsl:
-			ofs = g.armLSL(g.R[rm], is, false, true)
+			ofs = g.lsl(g.R[rm], is, false, true)
 		case lsr:
-			ofs = g.armLSR(g.R[rm], is, false, true)
+			ofs = g.lsr(g.R[rm], is, false, true)
 		case asr:
-			ofs = g.armASR(g.R[rm], is, false, true)
+			ofs = g.asr(g.R[rm], is, false, true)
 		case ror:
-			ofs = g.armROR(g.R[rm], is, false, true)
+			ofs = g.ror(g.R[rm], is, false, true)
 		}
 	} else {
 		ofs = inst & 0b1111_1111_1111 // I = 0 immediate
@@ -366,13 +366,13 @@ func (g *GBA) armALUOp2(inst uint32) uint32 {
 		carryMut := util.Bit(inst, 20)
 		switch shiftType := (inst >> 5) & 0b11; shiftType {
 		case lsl:
-			return g.armLSL(g.R[rm]+salt, is, carryMut, !isRegister)
+			return g.lsl(g.R[rm]+salt, is, carryMut, !isRegister)
 		case lsr:
-			return g.armLSR(g.R[rm]+salt, is, carryMut, !isRegister)
+			return g.lsr(g.R[rm]+salt, is, carryMut, !isRegister)
 		case asr:
-			return g.armASR(g.R[rm]+salt, is, carryMut, !isRegister)
+			return g.asr(g.R[rm]+salt, is, carryMut, !isRegister)
 		case ror:
-			return g.armROR(g.R[rm]+salt, is, carryMut, !isRegister)
+			return g.ror(g.R[rm]+salt, is, carryMut, !isRegister)
 		}
 		return g.R[rm] + salt
 	}
@@ -381,7 +381,7 @@ func (g *GBA) armALUOp2(inst uint32) uint32 {
 	op2 := inst & 0b1111_1111
 	is := uint32((inst>>8)&0b1111) * 2
 	carryMut := util.Bit(inst, 20)
-	op2 = g.armROR(op2, is, carryMut, false)
+	op2 = g.ror(op2, is, carryMut, false)
 	return op2
 }
 

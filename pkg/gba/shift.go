@@ -4,7 +4,7 @@ import (
 	"github.com/pokemium/magia/pkg/util"
 )
 
-func (g *GBA) armLSL(val uint32, is uint32, carryMut bool, imm bool) uint32 {
+func (g *GBA) lsl(val uint32, is uint32, carryMut bool, imm bool) uint32 {
 	switch {
 	case is == 0 && imm:
 		return val
@@ -22,7 +22,7 @@ func (g *GBA) armLSL(val uint32, is uint32, carryMut bool, imm bool) uint32 {
 	}
 }
 
-func (g *GBA) armLSR(val uint32, is uint32, carryMut bool, imm bool) uint32 {
+func (g *GBA) lsr(val uint32, is uint32, carryMut bool, imm bool) uint32 {
 	if is == 0 && imm {
 		is = 32
 	}
@@ -33,7 +33,7 @@ func (g *GBA) armLSR(val uint32, is uint32, carryMut bool, imm bool) uint32 {
 	return util.LSR(val, uint(is))
 }
 
-func (g *GBA) armASR(val uint32, is uint32, carryMut bool, imm bool) uint32 {
+func (g *GBA) asr(val uint32, is uint32, carryMut bool, imm bool) uint32 {
 	if (is == 0 && imm) || is > 32 {
 		is = 32
 	}
@@ -44,7 +44,7 @@ func (g *GBA) armASR(val uint32, is uint32, carryMut bool, imm bool) uint32 {
 	return util.ASR(val, uint(is))
 }
 
-func (g *GBA) armROR(val uint32, is uint32, carryMut bool, imm bool) uint32 {
+func (g *GBA) ror(val uint32, is uint32, carryMut bool, imm bool) uint32 {
 	if is == 0 && imm {
 		c := g.Carry()
 		g.SetCPSRFlag(flagC, util.Bit(val, 0))
