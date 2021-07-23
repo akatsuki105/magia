@@ -84,10 +84,12 @@ func New(src []byte, j [10]func() bool, audioStream []byte) *GBA {
 		RAM:        *ram.New(src),
 		dma:        NewDMA(),
 		Sound:      apu.New(true, audioStream),
-		timers:     timer.New(s),
 		joypad:     joypad.New(j),
 		scheduler:  s,
 	}
+	g.timers = timer.New(func() uint16 {
+		return uint16(g.Sound.Load32(apu.SOUNDCNT_H))
+	}, s, func(ch int) { g.dmaTransferFifo(ch) })
 	g._setRAM(ram.KEYINPUT, uint32(0x3ff), 2)
 	g.softReset()
 	return g
@@ -341,10 +343,7 @@ func (g *GBA) tick(c int) {
 	}
 
 	g.cycle += c
-	if timer.Enable == 0 {
-		return
-	}
-	irqs := g.timers.Tick(c, uint16(g.Sound.Load32(apu.SOUNDCNT_H)), func(ch int) { g.dmaTransferFifo(ch) })
+	irqs := g.timers.Tick(c)
 	for i, irq := range irqs {
 		if irq {
 			g.triggerIRQ(irqTimer0 + IRQID(i))

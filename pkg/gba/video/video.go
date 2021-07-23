@@ -5,6 +5,11 @@ import (
 	"github.com/pokemium/magia/pkg/util"
 )
 
+const (
+	HDRAW_LENGTH = 960
+	HBLANK_FLIP  = 46
+)
+
 const DISPSTAT_MASK = 0xff38
 
 func (v *Video) Load32(addr uint32) uint32 {

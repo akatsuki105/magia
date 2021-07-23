@@ -2,7 +2,15 @@ package scheduler
 
 type EventName string
 
-const ()
+const (
+	StartHBlank  EventName = "StartHBlank"
+	MidHBlank    EventName = "MidHBlank"
+	StartHDraw   EventName = "StartHDraw"
+	Timer0Update EventName = "Timer0Update"
+	Timer1Update EventName = "Timer1Update"
+	Timer2Update EventName = "Timer2Update"
+	Timer3Update EventName = "Timer3Update"
+)
 
 type Event struct {
 	name     EventName

@@ -11,12 +11,19 @@ const (
 	SoundBTimer = 14
 )
 
-var Enable byte = 0
+type Timers struct {
+	Enable byte
+	cnth   func() uint16
+	timers [4]*Timer
+	dma    func(int)
+}
 
-type Timers [4]*Timer
-
-func New(s *scheduler.Scheduler) Timers {
-	return Timers{&Timer{0, 0, 0, 0, s}, &Timer{0, 0, 0, 0, s}, &Timer{0, 0, 0, 0, s}, &Timer{0, 0, 0, 0, s}}
+func New(cnth func() uint16, s *scheduler.Scheduler, dma func(int)) Timers {
+	return Timers{
+		cnth:   cnth,
+		timers: [4]*Timer{{0, 0, 0, 0, s, 0}, {0, 0, 0, 0, s, 0}, {0, 0, 0, 0, s, 0}, {0, 0, 0, 0, s, 0}},
+		dma:    dma,
+	}
 }
 
 type Timer struct {
@@ -25,6 +32,7 @@ type Timer struct {
 	Reload    uint16
 	Control   byte
 	scheduler *scheduler.Scheduler
+	lastEvent uint64
 }
 
 func (t *Timer) cascade() bool { return util.Bit(t.Control, 2) }
@@ -46,11 +54,11 @@ func (ts *Timers) GetIO(offset uint32) uint32 {
 	idx, ofs := offset/4, offset%4
 	switch ofs {
 	case 0:
-		return uint32(ts[idx].Control)<<16 | uint32(ts[idx].Count)
+		return uint32(ts.timers[idx].Control)<<16 | uint32(ts.timers[idx].Count)
 	case 1:
-		return uint32(ts[idx].Count >> 8)
+		return uint32(ts.timers[idx].Count >> 8)
 	case 2:
-		return uint32(ts[idx].Control)
+		return uint32(ts.timers[idx].Control)
 	case 3:
 		return 0
 	}
@@ -61,63 +69,67 @@ func (ts *Timers) SetIO(offset uint32, b byte) {
 	idx, ofs := offset/4, offset%4
 	switch ofs {
 	case 0:
-		ts[idx].Reload = (ts[idx].Reload & 0xff00) | uint16(b)
+		ts.timers[idx].Reload = (ts.timers[idx].Reload & 0xff00) | uint16(b)
 	case 1:
-		ts[idx].Reload = (ts[idx].Reload & 0xff) | (uint16(b) << 8)
+		ts.timers[idx].Reload = (ts.timers[idx].Reload & 0xff) | (uint16(b) << 8)
 	case 2:
 		if util.Bit(b, 7) {
-			Enable |= (1 << idx)
+			ts.Enable |= (1 << idx)
 		} else {
-			Enable &= ^(1 << idx)
+			ts.Enable &= ^(1 << idx)
 		}
-		previous := util.Bit(ts[idx].Control, 7)
-		ts[idx].Control = b
+		previous := util.Bit(ts.timers[idx].Control, 7)
+		ts.timers[idx].Control = b
 		// The reload value is copied into the counter when the timer start bit becomes changed from 0 to 1.
 		if !previous && util.Bit(b, 7) {
-			ts[idx].Count = ts[idx].Reload
-			ts[idx].Next = 0
+			ts.timers[idx].Count = ts.timers[idx].Reload
+			ts.timers[idx].Next = 0
 		}
 	}
 }
 
 var clockShift = [4]byte{0, 6, 8, 10}
 
-func (ts *Timers) Tick(cycles int, cnth uint16, dma func(ch int)) [4]bool {
+func (ts *Timers) Tick(cycles int) [4]bool {
+	if ts.Enable == 0 {
+		return [4]bool{}
+	}
+
 	overflow, irq := false, [4]bool{}
 	for i := 0; i < 4; i++ {
-		if !ts[i].enable() {
+		if !ts.timers[i].enable() {
 			overflow = false
 			continue
 		}
 
 		inc := 0
-		if i > 0 && ts[i].cascade() {
+		if i > 0 && ts.timers[i].cascade() {
 			if overflow {
 				inc = 1
 			}
 		} else {
-			ts[i].Next += cycles
-			inc = ts[i].Next >> clockShift[ts[i].Control&0b11]
-			ts[i].Next -= (inc << clockShift[ts[i].Control&0b11])
+			ts.timers[i].Next += cycles
+			inc = ts.timers[i].Next >> clockShift[ts.timers[i].Control&0b11]
+			ts.timers[i].Next -= (inc << clockShift[ts.timers[i].Control&0b11])
 		}
 
 		if inc > 0 {
-			overflow = ts[i].increment(inc)
+			overflow = ts.timers[i].increment(inc)
 			if overflow {
-				if (cnth>>SoundATimer)&0b1 == uint16(i) {
+				if (ts.cnth()>>SoundATimer)&0b1 == uint16(i) {
 					apu.FifoALoad()
 					if apu.FifoALen <= 0x10 {
-						dma(1)
+						ts.dma(1)
 					}
 				}
-				if (cnth>>SoundBTimer)&0b1 == uint16(i) {
+				if (ts.cnth()>>SoundBTimer)&0b1 == uint16(i) {
 					apu.FifoBLoad()
 					if apu.FifoBLen <= 0x10 {
-						dma(2)
+						ts.dma(2)
 					}
 				}
 
-				if ts[i].overflow() {
+				if ts.timers[i].overflow() {
 					irq[i] = true
 				}
 			}
