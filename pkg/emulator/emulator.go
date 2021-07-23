@@ -15,6 +15,7 @@ import (
 
 var (
 	second = time.NewTicker(time.Second)
+	cache  []byte
 )
 
 type Emulator struct {
@@ -23,6 +24,7 @@ type Emulator struct {
 	RomDir   string
 	debugger *debug.Debugger
 	pause    bool
+	reset    bool
 }
 
 func New(romData []byte, romDir string) *Emulator {
@@ -45,8 +47,24 @@ func New(romData []byte, romDir string) *Emulator {
 	return e
 }
 
+func (e *Emulator) ResetGBA() {
+	e.writeSav()
+	e.debugger.Reset(e.GBA)
+	e.loadSav()
+
+	e.reset = false
+}
+
 func (e *Emulator) Update() error {
-	defer e.GBA.PanicHandler("core", true)
+	if e.pause {
+		return nil
+	}
+	if e.reset {
+		e.ResetGBA()
+		return nil
+	}
+
+	defer e.GBA.PanicHandler("update", true)
 	e.GBA.Update()
 	audio.Play()
 
@@ -61,8 +79,14 @@ func (e *Emulator) Update() error {
 }
 
 func (e *Emulator) Draw(screen *ebiten.Image) {
+	if e.pause {
+		screen.ReplacePixels(cache)
+		return
+	}
+
 	defer e.GBA.PanicHandler("gpu", true)
-	screen.ReplacePixels(e.GBA.Draw())
+	cache = e.GBA.Draw()
+	screen.ReplacePixels(cache)
 }
 
 func (e *Emulator) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {

@@ -13,3 +13,7 @@ func New(g *gba.GBA, pause *bool) *Debugger {
 		pause: pause,
 	}
 }
+
+func (d *Debugger) Reset(g *gba.GBA) {
+	d.g = g
+}
