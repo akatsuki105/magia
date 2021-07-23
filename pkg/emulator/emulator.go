@@ -15,15 +15,16 @@ type Emulator struct {
 	Rom string
 }
 
-func New(g *gba.GBA, r string) *Emulator {
+func New(romData []byte, romDir string) *Emulator {
+	g := gba.New(romData)
 	e := &Emulator{
 		GBA: g,
-		Rom: r,
+		Rom: romDir,
 	}
 	e.setupCloseHandler()
 
 	// setup audio
-	audio.Init()
+	audio.Reset(&g.Sound.Enable)
 	e.GBA.SetAudioBuffer(audio.Stream)
 
 	e.loadSav()

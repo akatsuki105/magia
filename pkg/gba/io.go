@@ -17,7 +17,7 @@ func (g *GBA) _getRAM(addr uint32) uint32 {
 	case (addr >= 0x0400_0000) && (addr < 0x0400_0000+0x60):
 		return g.video.Load32(addr)
 	case (addr >= 0x0400_0060) && (addr < 0x0400_00A8):
-		return g.apu.Load32(addr - 0x0400_0060)
+		return g.Sound.Load32(addr - 0x0400_0060)
 	case isDMA0IO(addr):
 		return g.dma[0].get(addr - ram.DMA0SAD)
 	case isDMA1IO(addr):
@@ -110,26 +110,26 @@ func (g *GBA) _setRAM(addr uint32, val uint32, width int) {
 		}
 
 	case g.in(addr, ram.SOUND1CNT_L, ram.SOUNDCNT_H): // sound io
-		if util.Bit(byte(g.apu.Load32(apu.SOUNDCNT_X)), 7) {
+		if util.Bit(byte(g.Sound.Load32(apu.SOUNDCNT_X)), 7) {
 			for i := uint32(0); i < uint32(width); i++ {
-				g.apu.Store8(addr+i-ram.SOUND1CNT_L, byte(val>>(8*i)))
+				g.Sound.Store8(addr+i-ram.SOUND1CNT_L, byte(val>>(8*i)))
 			}
 		}
 
 	case addr == ram.SOUNDCNT_X:
-		old := byte(g.apu.Load32(apu.SOUNDCNT_X))
+		old := byte(g.Sound.Load32(apu.SOUNDCNT_X))
 		old = (old & 0xf) | (byte(val) & 0xf0)
-		g.apu.Store8(apu.SOUNDCNT_X, old)
+		g.Sound.Store8(apu.SOUNDCNT_X, old)
 		if !util.Bit(byte(val), 7) {
 			for i := uint32(0x4000060); i <= 0x4000081; i++ {
-				g.apu.Store8(i-0x4000060, 0)
+				g.Sound.Store8(i-0x4000060, 0)
 			}
-			g.apu.Store8(apu.SOUNDCNT_X, 0)
+			g.Sound.Store8(apu.SOUNDCNT_X, 0)
 		}
 
 	case g.in(addr, ram.WAVE_RAM, ram.WAVE_RAM+0xf): // wave ram
 		if width == 2 {
-			g.apu.Store16(addr-ram.SOUND1CNT_L, uint16(val))
+			g.Sound.Store16(addr-ram.SOUND1CNT_L, uint16(val))
 		}
 
 	case isDMA0IO(addr):

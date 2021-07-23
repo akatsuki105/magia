@@ -8,8 +8,10 @@ import (
 var context *oto.Context
 var player *oto.Player
 var Stream []byte
+var enable *bool
 
-func Init() {
+func Reset(enablePtr *bool) {
+	enable = enablePtr
 	Stream = make([]byte, apu.STREAM_LEN)
 
 	var err error
@@ -22,7 +24,7 @@ func Init() {
 }
 
 func Play() {
-	if player == nil {
+	if player == nil || !*enable {
 		return
 	}
 	player.Write(Stream)

@@ -8,9 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/pokemium/magia/pkg/emulator"
-	"github.com/pokemium/magia/pkg/emulator/audio"
 	"github.com/pokemium/magia/pkg/emulator/joypad"
-	"github.com/pokemium/magia/pkg/gba"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -56,10 +54,8 @@ func main() {
 func Run() ExitCode {
 	var (
 		showVersion   = flag.Bool("v", false, "show version")
-		debug         = flag.Bool("d", false, "exec in debug mode")
 		showBIOSIntro = flag.Bool("b", false, "show BIOS intro")
 		showCartInfo  = flag.Bool("c", false, "show cartridge info")
-		mute          = flag.Bool("m", false, "mute sound")
 	)
 
 	flag.Parse()
@@ -75,7 +71,7 @@ func Run() ExitCode {
 		return ExitCodeError
 	}
 
-	emu := emulator.New(gba.New(data, &audio.Stream, *debug, *mute), path)
+	emu := emulator.New(data, path)
 	if *showCartInfo {
 		fmt.Println(emu.GBA.CartInfo())
 		return ExitCodeOK

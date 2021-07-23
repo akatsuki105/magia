@@ -32,7 +32,7 @@ var WaveRAM [0x20]byte
 var resetSoundChanMap = map[uint32]int{0x65 - 0x60: 0, 0x6d - 0x60: 1, 0x75 - 0x60: 2, 0x7d - 0x60: 3}
 
 type APU struct {
-	enable bool
+	Enable bool
 	buffer [72]byte
 	stream []byte
 	chans  [4]*SoundChan
@@ -134,7 +134,7 @@ func (a *APU) SetBuffer(s []byte) {
 }
 
 func (a *APU) Play() {
-	a.enable = true
+	a.Enable = true
 	if a.stream == nil {
 		return
 	}

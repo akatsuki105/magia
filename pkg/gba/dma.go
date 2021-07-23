@@ -123,7 +123,7 @@ func (g *GBA) dmaTransfer(t dmaTiming) {
 
 // Receive 4 x 32bit (16 bytes) per DMA
 func (g *GBA) dmaTransferFifo(ch int) {
-	if !g.apu.IsSoundMasterEnable() || !g.dma[ch].enabled() || g.dma[ch].timing() != dmaSpecial {
+	if !g.Sound.IsSoundMasterEnable() || !g.dma[ch].enabled() || g.dma[ch].timing() != dmaSpecial {
 		return
 	}
 

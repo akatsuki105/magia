@@ -58,7 +58,7 @@ type GBA struct {
 	dma        [4]*DMA
 	joypad     Joypad
 	DoSav      bool
-	apu        *apu.APU
+	Sound      *apu.APU
 }
 
 type Pipe struct {
@@ -72,14 +72,14 @@ type Inst struct {
 }
 
 // New GBA
-func New(src []byte, soundBuf *[]byte, isDebug bool, mute bool) *GBA {
+func New(src []byte) *GBA {
 	g := &GBA{
 		Reg:        *NewReg(),
 		video:      video.NewVideo(),
 		CartHeader: cart.New(src),
 		RAM:        *ram.New(src),
 		dma:        NewDMA(),
-		apu:        apu.New(),
+		Sound:      apu.New(),
 		timers:     timer.New(),
 	}
 	g._setRAM(ram.KEYINPUT, uint32(0x3ff), 2)
@@ -189,7 +189,7 @@ func (g *GBA) Update() {
 	apu.SoundBufferWrap()
 	g.Frame++
 
-	g.apu.Play()
+	g.Sound.Play()
 }
 
 func (g *GBA) scanline() {
@@ -213,7 +213,7 @@ func (g *GBA) scanline() {
 	g.video.SetHBlank(true)
 	g.dmaTransfer(dmaHBlank)
 	g.exec(1232 - 1006)
-	g.apu.SoundClock(1232)
+	g.Sound.SoundClock(1232)
 	g.video.SetHBlank(false)
 
 	vcount := g.video.RenderPath.Vcount
@@ -355,7 +355,7 @@ func (g *GBA) timer(c int) {
 	if timer.Enable == 0 {
 		return
 	}
-	irqs := g.timers.Tick(c, uint16(g.apu.Load32(apu.SOUNDCNT_H)), func(ch int) { g.dmaTransferFifo(ch) })
+	irqs := g.timers.Tick(c, uint16(g.Sound.Load32(apu.SOUNDCNT_H)), func(ch int) { g.dmaTransferFifo(ch) })
 	for i, irq := range irqs {
 		if irq {
 			g.triggerIRQ(irqTimer0 + IRQID(i))
@@ -369,7 +369,7 @@ func (g *GBA) SetJoypadHandler(h [10](func() bool)) {
 }
 
 func (g *GBA) SetAudioBuffer(s []byte) {
-	g.apu.SetBuffer(s)
+	g.Sound.SetBuffer(s)
 }
 
 func (g *GBA) PanicHandler(place string, stack bool) {
