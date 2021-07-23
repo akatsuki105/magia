@@ -10,10 +10,12 @@ var player *oto.Player
 var Stream []byte
 var enable *bool
 
+func init() {
+	Stream = make([]byte, apu.STREAM_LEN)
+}
+
 func Reset(enablePtr *bool) {
 	enable = enablePtr
-	Stream = make([]byte, apu.STREAM_LEN)
-
 	var err error
 	context, err = oto.NewContext(apu.SND_FREQUENCY, 2, 2, apu.STREAM_LEN)
 	if err != nil {

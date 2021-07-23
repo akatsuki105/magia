@@ -8,6 +8,8 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/pokemium/magia/pkg/emulator/audio"
+	"github.com/pokemium/magia/pkg/emulator/debug"
+	"github.com/pokemium/magia/pkg/emulator/joypad"
 	"github.com/pokemium/magia/pkg/gba"
 )
 
@@ -16,24 +18,29 @@ var (
 )
 
 type Emulator struct {
-	GBA    *gba.GBA
-	Rom    []byte
-	RomDir string
+	GBA      *gba.GBA
+	Rom      []byte
+	RomDir   string
+	debugger *debug.Debugger
+	pause    bool
 }
 
 func New(romData []byte, romDir string) *Emulator {
-	g := gba.New(romData)
+	g := gba.New(romData, joypad.Handler, audio.Stream)
+	audio.Reset(&g.Sound.Enable)
+
+	ebiten.SetWindowResizable(true)
+	ebiten.SetWindowTitle(g.CartHeader.Title)
+	ebiten.SetWindowSize(240*2, 160*2)
+
 	e := &Emulator{
 		GBA:    g,
 		Rom:    romData,
 		RomDir: romDir,
 	}
-
-	// setup audio
-	audio.Reset(&g.Sound.Enable)
-	e.GBA.SetAudioBuffer(audio.Stream)
-
+	e.debugger = debug.New(g, &e.pause)
 	e.setupCloseHandler()
+
 	e.loadSav()
 	return e
 }

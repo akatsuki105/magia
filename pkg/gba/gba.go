@@ -56,7 +56,7 @@ type GBA struct {
 	pipe       Pipe
 	timers     timer.Timers
 	dma        [4]*DMA
-	joypad     Joypad
+	joypad     *Joypad
 	DoSav      bool
 	Sound      *apu.APU
 }
@@ -72,17 +72,19 @@ type Inst struct {
 }
 
 // New GBA
-func New(src []byte) *GBA {
+func New(src []byte, j [10]func() bool, audioStream []byte) *GBA {
 	g := &GBA{
 		Reg:        *NewReg(),
 		video:      video.NewVideo(),
 		CartHeader: cart.New(src),
 		RAM:        *ram.New(src),
 		dma:        NewDMA(),
-		Sound:      apu.New(),
+		Sound:      apu.New(true, audioStream),
 		timers:     timer.New(),
+		joypad:     newJoypad(j),
 	}
 	g._setRAM(ram.KEYINPUT, uint32(0x3ff), 2)
+	g.softReset()
 	return g
 }
 
@@ -361,15 +363,6 @@ func (g *GBA) timer(c int) {
 			g.triggerIRQ(irqTimer0 + IRQID(i))
 		}
 	}
-}
-
-func (g *GBA) SetJoypadHandler(h [10](func() bool)) {
-	hp := [10]*func() bool{&h[0], &h[1], &h[2], &h[3], &h[4], &h[5], &h[6], &h[7], &h[8], &h[9]}
-	g.joypad.SetHandler(hp)
-}
-
-func (g *GBA) SetAudioBuffer(s []byte) {
-	g.Sound.SetBuffer(s)
 }
 
 func (g *GBA) PanicHandler(place string, stack bool) {

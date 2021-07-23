@@ -123,18 +123,15 @@ func (a *APU) resetSoundChan(addr uint32, b byte) {
 	a._resetSoundChan(resetSoundChanMap[addr], util.Bit(b, 7))
 }
 
-func New() *APU {
+func New(enable bool, stream []byte) *APU {
 	return &APU{
-		chans: [4]*SoundChan{{}, {}, {}, {}},
+		Enable: enable,
+		chans:  [4]*SoundChan{{}, {}, {}, {}},
+		stream: stream,
 	}
 }
 
-func (a *APU) SetBuffer(s []byte) {
-	a.stream = s
-}
-
 func (a *APU) Play() {
-	a.Enable = true
 	if a.stream == nil {
 		return
 	}

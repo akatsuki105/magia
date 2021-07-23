@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	"github.com/pokemium/magia/pkg/emulator"
-	"github.com/pokemium/magia/pkg/emulator/joypad"
 
 	"github.com/hajimehoshi/ebiten/v2"
 )
@@ -53,9 +52,8 @@ func main() {
 // Run program
 func Run() ExitCode {
 	var (
-		showVersion   = flag.Bool("v", false, "show version")
-		showBIOSIntro = flag.Bool("b", false, "show BIOS intro")
-		showCartInfo  = flag.Bool("c", false, "show cartridge info")
+		showVersion  = flag.Bool("v", false, "show version")
+		showCartInfo = flag.Bool("c", false, "show cartridge info")
 	)
 
 	flag.Parse()
@@ -77,16 +75,6 @@ func Run() ExitCode {
 		return ExitCodeOK
 	}
 
-	emu.GBA.SetJoypadHandler(joypad.Handler)
-	if *showBIOSIntro {
-		emu.GBA.Reset()
-	} else {
-		emu.GBA.SoftReset()
-	}
-
-	ebiten.SetWindowResizable(true)
-	ebiten.SetWindowTitle(emu.GBA.CartHeader.Title)
-	ebiten.SetWindowSize(240*2, 160*2)
 	if err := ebiten.RunGame(emu); err != nil {
 		fmt.Fprintf(os.Stderr, "crash in emulation: %s\n", err)
 	}

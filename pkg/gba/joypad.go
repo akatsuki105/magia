@@ -19,44 +19,46 @@ const (
 
 type Joypad struct {
 	Input   [4]byte
-	handler [10](*func() bool)
+	handler [10](func() bool)
 }
 
-func (j *Joypad) SetHandler(h [10](*func() bool)) {
-	j.handler = h
+func newJoypad(joypadHandlers [10]func() bool) *Joypad {
+	return &Joypad{
+		handler: joypadHandlers,
+	}
 }
 
 func (j *Joypad) Read() {
-	j.Input[0] = util.SetBit8(j.Input[0], A, !wrapHandler(j.handler[A]))
-	j.Input[0] = util.SetBit8(j.Input[0], B, !wrapHandler(j.handler[B]))
-	j.Input[0] = util.SetBit8(j.Input[0], Select, !wrapHandler(j.handler[Select]))
-	j.Input[0] = util.SetBit8(j.Input[0], Start, !wrapHandler(j.handler[Start]))
-	if wrapHandler(j.handler[Right]) {
+	j.Input[0] = util.SetBit8(j.Input[0], A, !wrapHandler(&j.handler[A]))
+	j.Input[0] = util.SetBit8(j.Input[0], B, !wrapHandler(&j.handler[B]))
+	j.Input[0] = util.SetBit8(j.Input[0], Select, !wrapHandler(&j.handler[Select]))
+	j.Input[0] = util.SetBit8(j.Input[0], Start, !wrapHandler(&j.handler[Start]))
+	if wrapHandler(&j.handler[Right]) {
 		j.Input[0] = j.Input[0] & ^byte((1 << Right))
 		j.Input[0] = j.Input[0] | byte((1 << Left)) // off <-
 	} else {
 		j.Input[0] = j.Input[0] | byte((1 << Right))
 	}
-	if wrapHandler(j.handler[Left]) {
+	if wrapHandler(&j.handler[Left]) {
 		j.Input[0] = j.Input[0] & ^byte((1 << Left))
 		j.Input[0] = j.Input[0] | byte((1 << Right)) // off ->
 	} else {
 		j.Input[0] = j.Input[0] | byte((1 << Left))
 	}
-	if wrapHandler(j.handler[Up]) {
+	if wrapHandler(&j.handler[Up]) {
 		j.Input[0] = j.Input[0] & ^byte((1 << Up))
 		j.Input[0] = j.Input[0] | byte((1 << Down)) // off ↓
 	} else {
 		j.Input[0] = j.Input[0] | byte((1 << Up))
 	}
-	if wrapHandler(j.handler[Down]) {
+	if wrapHandler(&j.handler[Down]) {
 		j.Input[0] = j.Input[0] & ^byte((1 << Down))
 		j.Input[0] = j.Input[0] | byte((1 << Up)) // off ↑
 	} else {
 		j.Input[0] = j.Input[0] | byte((1 << Down))
 	}
-	j.Input[1] = util.SetBit8(j.Input[1], R, !wrapHandler(j.handler[R+8]))
-	j.Input[1] = util.SetBit8(j.Input[1], L, !wrapHandler(j.handler[L+8]))
+	j.Input[1] = util.SetBit8(j.Input[1], R, !wrapHandler(&j.handler[R+8]))
+	j.Input[1] = util.SetBit8(j.Input[1], L, !wrapHandler(&j.handler[L+8]))
 }
 
 func wrapHandler(h *func() bool) bool {
