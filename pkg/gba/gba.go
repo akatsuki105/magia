@@ -9,6 +9,7 @@ import (
 	"github.com/pokemium/magia/pkg/gba/cart"
 	"github.com/pokemium/magia/pkg/gba/joypad"
 	"github.com/pokemium/magia/pkg/gba/ram"
+	"github.com/pokemium/magia/pkg/gba/scheduler"
 	"github.com/pokemium/magia/pkg/gba/timer"
 	"github.com/pokemium/magia/pkg/gba/video"
 	"github.com/pokemium/magia/pkg/util"
@@ -56,6 +57,7 @@ type GBA struct {
 	halt       bool
 	pipe       Pipe
 	timers     timer.Timers
+	scheduler  *scheduler.Scheduler
 	dma        [4]*DMA
 	joypad     *joypad.Joypad
 	DoSav      bool
@@ -74,6 +76,7 @@ type Inst struct {
 
 // New GBA
 func New(src []byte, j [10]func() bool, audioStream []byte) *GBA {
+	s := scheduler.New()
 	g := &GBA{
 		Reg:        *NewReg(),
 		video:      video.NewVideo(),
@@ -81,8 +84,9 @@ func New(src []byte, j [10]func() bool, audioStream []byte) *GBA {
 		RAM:        *ram.New(src),
 		dma:        NewDMA(),
 		Sound:      apu.New(true, audioStream),
-		timers:     timer.New(),
+		timers:     timer.New(s),
 		joypad:     joypad.New(j),
+		scheduler:  s,
 	}
 	g._setRAM(ram.KEYINPUT, uint32(0x3ff), 2)
 	g.softReset()
@@ -100,7 +104,7 @@ var accumulatedCycles = 0
 func (g *GBA) exec(cycles int) {
 	if g.halt {
 		tmp := g.cycle
-		g.timer(cycles)
+		g.tick(cycles)
 		g.cycle = tmp
 		return
 	}
@@ -110,9 +114,9 @@ func (g *GBA) exec(cycles int) {
 		g.step()
 		inExec = false
 		if g.halt {
-			g.timer(cycles - g.cycle)
+			g.tick(cycles - g.cycle)
 		} else {
-			g.timer(accumulatedCycles)
+			g.tick(accumulatedCycles)
 			accumulatedCycles = 0
 		}
 	}
@@ -195,15 +199,8 @@ func (g *GBA) scanline() {
 
 	g.exec(1006)
 
-	// HBlank
-	if !g.video.VBlank() {
-		if util.Bit(dispstat, 4) {
-			g.triggerIRQ(irqHBlank)
-		}
-	}
+	g.startHBlank()
 
-	g.video.SetHBlank(true)
-	g.dmaTransfer(dmaHBlank)
 	g.exec(1232 - 1006)
 	g.Sound.SoundClock(1232)
 	g.video.SetHBlank(false)
@@ -213,6 +210,18 @@ func (g *GBA) scanline() {
 		g.video.RenderPath.DrawScanline(vcount)
 	}
 	g.video.RenderPath.Vcount++ // increment vcount
+}
+
+func (g *GBA) startHBlank() {
+	if !g.video.VBlank() {
+		dispstat := uint16(g._getRAM(ram.DISPSTAT))
+		if util.Bit(dispstat, 4) {
+			g.triggerIRQ(irqHBlank)
+		}
+	}
+
+	g.video.SetHBlank(true)
+	g.dmaTransfer(dmaHBlank)
 }
 
 // Draw GBA screen by 1 frame
@@ -322,7 +331,7 @@ func (g *GBA) interwork() {
 	g.pipelining()
 }
 
-func (g *GBA) timer(c int) {
+func (g *GBA) tick(c int) {
 	if inExec {
 		accumulatedCycles += c
 		return

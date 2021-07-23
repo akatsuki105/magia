@@ -2,6 +2,7 @@ package timer
 
 import (
 	"github.com/pokemium/magia/pkg/gba/apu"
+	"github.com/pokemium/magia/pkg/gba/scheduler"
 	"github.com/pokemium/magia/pkg/util"
 )
 
@@ -14,13 +15,16 @@ var Enable byte = 0
 
 type Timers [4]*Timer
 
-func New() Timers { return Timers{&Timer{}, &Timer{}, &Timer{}, &Timer{}} }
+func New(s *scheduler.Scheduler) Timers {
+	return Timers{&Timer{0, 0, 0, 0, s}, &Timer{0, 0, 0, 0, s}, &Timer{0, 0, 0, 0, s}, &Timer{0, 0, 0, 0, s}}
+}
 
 type Timer struct {
-	Count   uint16
-	Next    int // if this value is 0, count up timer.Count
-	Reload  uint16
-	Control byte
+	Count     uint16
+	Next      int // if this value is 0, count up timer.Count
+	Reload    uint16
+	Control   byte
+	scheduler *scheduler.Scheduler
 }
 
 func (t *Timer) cascade() bool { return util.Bit(t.Control, 2) }

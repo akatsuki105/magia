@@ -51,7 +51,7 @@ func (g *GBA) _getRAM(addr uint32) uint32 {
 	}
 }
 func (g *GBA) getRAM32(addr uint32, s bool) uint32 {
-	g.timer(g.waitBus(addr, 32, s))
+	g.tick(g.waitBus(addr, 32, s))
 	val := g._getRAM(addr & ^uint32(3))
 
 	if addr&3 > 0 { // https://github.com/jsmolka/gba-tests/blob/a6447c5404c8fc2898ddc51f438271f832083b7e/thumb/memory.asm#L72
@@ -61,30 +61,30 @@ func (g *GBA) getRAM32(addr uint32, s bool) uint32 {
 }
 
 func (g *GBA) getRAM16(addr uint32, s bool) uint32 {
-	g.timer(g.waitBus(addr, 16, s))
+	g.tick(g.waitBus(addr, 16, s))
 	val := g._getRAM(addr)
 	return val & 0x0000_ffff
 }
 
 func (g *GBA) getRAM8(addr uint32, s bool) byte {
-	g.timer(g.waitBus(addr, 8, s))
+	g.tick(g.waitBus(addr, 8, s))
 	return byte(g._getRAM(addr))
 }
 
 func (g *GBA) setRAM32(addr, value uint32, s bool) {
 	addr = util.Align4(addr)
-	g.timer(g.waitBus(addr, 32, s))
+	g.tick(g.waitBus(addr, 32, s))
 	g._setRAM(addr, value, 4)
 }
 
 func (g *GBA) setRAM16(addr uint32, value uint16, s bool) {
 	addr = util.Align2(addr)
-	g.timer(g.waitBus(addr, 16, s))
+	g.tick(g.waitBus(addr, 16, s))
 	g._setRAM(addr, uint32(value), 2)
 }
 
 func (g *GBA) setRAM8(addr uint32, b byte, s bool) {
-	g.timer(g.waitBus(addr, 8, s))
+	g.tick(g.waitBus(addr, 8, s))
 	g._setRAM(addr, uint32(b), 1)
 }
 
