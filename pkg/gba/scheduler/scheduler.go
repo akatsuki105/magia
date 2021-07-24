@@ -24,6 +24,10 @@ func (s *Scheduler) Next() uint64 {
 
 func (s *Scheduler) ScheduleEvent(name EventName, callback func(cyclesLate uint64), after uint64) {
 	when := s.cycles + after
+	s.ScheduleEventAbsolute(name, callback, when)
+}
+
+func (s *Scheduler) ScheduleEventAbsolute(name EventName, callback func(cyclesLate uint64), when uint64) {
 	var previous *Event = nil
 	event := s.root
 	for {

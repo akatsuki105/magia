@@ -26,8 +26,6 @@ func (g *GBA) _getRAM(addr uint32) uint32 {
 		return g.dma[2].get(addr - ram.DMA2SAD)
 	case isDMA3IO(addr):
 		return g.dma[3].get(addr - ram.DMA3SAD)
-	case timer.IsIO(addr):
-		return g.timers.GetIO(addr - 0x0400_0100)
 	case addr == ram.KEYINPUT || addr == ram.KEYINPUT+1:
 		return util.LE32(g.joypad.Input[addr-ram.KEYINPUT:])
 	case ram.Palette(addr):
@@ -161,8 +159,13 @@ func (g *GBA) _setRAM(addr uint32, val uint32, width int) {
 		}
 
 	case timer.IsIO(addr):
-		for i := uint32(0); i < uint32(width); i++ {
-			g.timers.SetIO(addr-0x0400_0100+i, byte(val>>(8*i)))
+		switch width {
+		case 1:
+			g.timers.Set8(addr, byte(val))
+		case 2:
+			g.timers.Set16(addr, uint16(val))
+		case 4:
+			g.timers.Set32(addr, val)
 		}
 
 	case addr == ram.KEYCNT:

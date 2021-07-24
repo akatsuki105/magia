@@ -56,7 +56,7 @@ type GBA struct {
 	Frame      uint
 	halt       bool
 	pipe       Pipe
-	timers     timer.Timers
+	timers     *timer.Timers
 	scheduler  *scheduler.Scheduler
 	dma        [4]*DMA
 	joypad     *joypad.Joypad
@@ -87,9 +87,7 @@ func New(src []byte, j [10]func() bool, audioStream []byte) *GBA {
 		joypad:     joypad.New(j),
 		scheduler:  s,
 	}
-	g.timers = timer.New(func() uint16 {
-		return uint16(g.Sound.Load32(apu.SOUNDCNT_H))
-	}, s, func(ch int) { g.dmaTransferFifo(ch) })
+	g.timers = timer.New(s, &g.RAM, func(i int) { g.triggerIRQ(IRQID(i)) }, func(ch int) { g.dmaTransferFifo(ch) })
 	g._setRAM(ram.KEYINPUT, uint32(0x3ff), 2)
 	g.softReset()
 	return g
@@ -331,12 +329,6 @@ func (g *GBA) interwork() {
 
 func (g *GBA) tick(c int) {
 	g.cycle += c
-	irqs := g.timers.Tick(c)
-	for i, irq := range irqs {
-		if irq {
-			g.triggerIRQ(irqTimer0 + IRQID(i))
-		}
-	}
 }
 
 func (g *GBA) PanicHandler(place string, stack bool) {
