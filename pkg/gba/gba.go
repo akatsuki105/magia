@@ -136,7 +136,8 @@ func (g *GBA) exception(addr uint32, mode Mode) {
 
 // Update GBA by 1 frame
 func (g *GBA) Update() {
-	for g.video.RenderPath.Vcount < video.VERTICAL_TOTAL_PIXELS-1 {
+	frame := g.Frame
+	for frame == g.Frame {
 		g.step()
 	}
 
@@ -145,11 +146,11 @@ func (g *GBA) Update() {
 	}
 
 	apu.SoundBufferWrap()
-	g.Frame++
 
 	g.Sound.Play()
 }
 
+// _startHdraw
 func (g *GBA) startHDraw(cyclesLate uint64) {
 	g.scheduler.ScheduleEvent(scheduler.StartHBlank, g.startHBlank, video.HDRAW_LENGTH-cyclesLate)
 
@@ -189,7 +190,6 @@ func (g *GBA) startHDraw(cyclesLate uint64) {
 
 func (g *GBA) startHBlank(cyclesLate uint64) {
 	g.scheduler.ScheduleEvent(scheduler.MidHBlank, g.midHBlank, video.HBLANK_LENGTH-video.HBLANK_FLIP-cyclesLate)
-	g.Sound.SoundClock(1232)
 
 	// Begin Hblank
 	dispstat := g.video.Dispstat()
@@ -212,9 +212,14 @@ func (g *GBA) startHBlank(cyclesLate uint64) {
 }
 
 func (g *GBA) midHBlank(cyclesLate uint64) {
+	g.Sound.SoundClock(1232)
+
 	dispstat := g.video.Dispstat()
 	g.video.SetDispstat(util.SetBit16(dispstat, video.HBLANK_FLAG, false))
 	g.scheduler.ScheduleEvent(scheduler.StartHDraw, g.startHDraw, video.HBLANK_FLIP-cyclesLate)
+	if g.video.RenderPath.Vcount == 227 {
+		g.Frame++
+	}
 }
 
 // Draw GBA screen by 1 frame

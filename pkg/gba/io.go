@@ -167,6 +167,7 @@ func (g *GBA) _setRAM(addr uint32, val uint32, width int) {
 		case 4:
 			g.timers.Set32(addr, val)
 		}
+		return
 
 	case addr == ram.KEYCNT:
 		for i := uint32(0); i < uint32(width); i++ {

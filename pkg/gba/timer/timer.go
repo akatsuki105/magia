@@ -1,6 +1,8 @@
 package timer
 
 import (
+	"fmt"
+
 	"github.com/pokemium/magia/pkg/gba/apu"
 	"github.com/pokemium/magia/pkg/gba/ram"
 	"github.com/pokemium/magia/pkg/gba/scheduler"
@@ -42,12 +44,14 @@ func NewTimer(p *Timers, id int) *Timer {
 	names := [4]scheduler.EventName{scheduler.Timer0Update, scheduler.Timer1Update, scheduler.Timer2Update, scheduler.Timer3Update}
 	t.event = &Event{
 		name:     names[id],
-		callback: t.Update,
+		callback: t.Overflow,
 	}
 	return t
 }
 
-func (t *Timer) Update(cyclesLate uint64) {
+// GBATimerUpdate
+// this callback is triggerd on timer's overflow
+func (t *Timer) Overflow(cyclesLate uint64) {
 	if util.Bit(t.flags, CountUp) {
 		t.setCounter(t.reload)
 	} else {
@@ -77,16 +81,18 @@ func (t *Timer) Update(cyclesLate uint64) {
 	if t.id < 3 {
 		nextTimer := t.p.timers[t.id+1]
 		if util.Bit(nextTimer.flags, CountUp) {
-			counter := nextTimer.counter()
-			nextTimer.setCounter(counter + 1)
-			counter = nextTimer.counter()
+			// cascade
+			counter := nextTimer.counter() + 1
+			nextTimer.setCounter(counter)
 			if counter == 0 && util.Bit(nextTimer.flags, Enable) {
-				nextTimer.Update(cyclesLate)
+				// overflow is occured on next timer too.
+				nextTimer.Overflow(cyclesLate)
 			}
 		}
 	}
 }
 
+// GBATimerUpdateRegister
 func (t *Timer) UpdateRegister(cyclesLate uint64) {
 	if !util.Bit(t.flags, Enable) || util.Bit(t.flags, CountUp) {
 		return
@@ -114,6 +120,7 @@ func (t *Timer) UpdateRegister(cyclesLate uint64) {
 	currentTime &= ^tickMask
 	t.p.scheduler.DescheduleEvent(t.event.name)
 	t.p.scheduler.ScheduleEventAbsolute(t.event.name, t.event.callback, currentTime)
+	fmt.Println(t.p.scheduler)
 }
 
 // TMnCNT_LO
