@@ -10,6 +10,7 @@ const (
 	Timer1Update EventName = "Timer1Update"
 	Timer2Update EventName = "Timer2Update"
 	Timer3Update EventName = "Timer3Update"
+	Irq          EventName = "Irq"
 )
 
 type Event struct {

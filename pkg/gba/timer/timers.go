@@ -7,6 +7,12 @@ import (
 )
 
 func (ts *Timers) Tick(cycles int) {
+	if ts.InExec {
+		ts.cycles += cycles
+		return
+	}
+
+	cycles += ts.cycles
 	ts.scheduler.Add(uint64(cycles))
 	for {
 		if ts.scheduler.Next() > ts.scheduler.Cycle() {
@@ -21,6 +27,8 @@ func IsIO(addr uint32) bool { return (addr >= 0x0400_0100) && (addr < 0x0400_011
 
 type Timers struct {
 	Enable    byte
+	InExec    bool
+	cycles    int
 	timers    [4]*Timer
 	scheduler *scheduler.Scheduler
 	ram       *ram.RAM

@@ -86,7 +86,7 @@ func New(src []byte, j [10]func() bool, audioStream []byte) *GBA {
 		joypad:     joypad.New(j),
 		scheduler:  s,
 	}
-	g.timers = timer.New(s, &g.RAM, func(i int) { g.triggerIRQ(IRQID(i)) }, func(ch int) { g.dmaTransferFifo(ch) })
+	g.timers = timer.New(s, &g.RAM, func(i int) { g.raiseIRQ(IRQID(i)) }, func(ch int) { g.dmaTransferFifo(ch) })
 	g._setRAM(ram.KEYINPUT, uint32(0x3ff), 2)
 	g.softReset()
 
@@ -103,6 +103,8 @@ func (g *GBA) Exit(s string) {
 }
 
 func (g *GBA) step() {
+	g.timers.Tick(0)
+
 	if g.halt {
 		g.timers.Tick(int(g.scheduler.Next() - g.scheduler.Cycle()))
 		return
@@ -111,13 +113,17 @@ func (g *GBA) step() {
 	g.inst = g.pipe.inst[0]
 	g.pipe.inst[0] = g.pipe.inst[1]
 
+	g.timers.InExec = true
 	if g.GetCPSRFlag(flagT) {
 		g.thumbStep()
 	} else {
 		g.armStep()
 	}
+	g.timers.InExec = false
+	g.timers.Tick(0)
 }
 
+// GBARaiseIRQ > GBATestIRQ > _triggerIRQ > ARMRaiseIRQ
 func (g *GBA) exception(addr uint32, mode Mode) {
 	cpsr := g.CPSR
 	g.setPrivMode(mode)
@@ -146,7 +152,6 @@ func (g *GBA) Update() {
 	}
 
 	apu.SoundBufferWrap()
-
 	g.Sound.Play()
 }
 
@@ -165,10 +170,11 @@ func (g *GBA) startHDraw(cyclesLate uint64) {
 	}
 
 	dispstat := g.video.Dispstat()
-	if g.video.RenderPath.Vcount == (dispstat >> 8) {
+	lyc := dispstat >> 8
+	if g.video.RenderPath.Vcount == lyc {
 		dispstat = uint16(util.SetBit16(dispstat, video.VCOUNTER_FLAG, true))
 		if util.Bit(dispstat, video.VCOUNTER_IRQ) {
-			g.triggerIRQ(irqVCount)
+			g.raiseIRQ(irqVCount)
 		}
 	} else {
 		dispstat = uint16(util.SetBit16(dispstat, video.VCOUNTER_FLAG, false))
@@ -181,7 +187,7 @@ func (g *GBA) startHDraw(cyclesLate uint64) {
 		g.video.SetDispstat(util.SetBit16(dispstat, video.VBLANK_FLAG, true))
 		g.dmaTransfer(dmaVBlank)
 		if util.Bit(dispstat, video.VBLANK_IRQ) {
-			g.triggerIRQ(irqVBlank)
+			g.raiseIRQ(irqVBlank)
 		}
 	case video.VERTICAL_TOTAL_PIXELS - 1:
 		g.video.SetDispstat(util.SetBit16(dispstat, video.VBLANK_FLAG, false))
@@ -204,7 +210,7 @@ func (g *GBA) startHBlank(cyclesLate uint64) {
 	}
 
 	if util.Bit(dispstat, video.HBLANK_IRQ) {
-		g.triggerIRQ(irqHBlank)
+		g.raiseIRQ(irqHBlank)
 	}
 
 	g.video.ShouldStall = false
@@ -225,23 +231,32 @@ func (g *GBA) midHBlank(cyclesLate uint64) {
 // Draw GBA screen by 1 frame
 func (g *GBA) Draw() []byte { return g.video.RenderPath.FinishDraw() }
 
-func (g *GBA) checkIRQ() {
-	cond1 := !g.GetCPSRFlag(flagI)
-	cond2 := g._getRAM(ram.IME)&0b1 > 0
-	cond3 := uint16(g._getRAM(ram.IE))&uint16(g._getRAM(ram.IF)) > 0
-	if cond1 && cond2 && cond3 {
-		g.exception(irqVec, IRQ)
+// GBARaiseIRQ
+func (g *GBA) raiseIRQ(irq IRQID) {
+	val := uint16(g._getRAM(ram.IF))
+	val = util.SetBit16(val, int(irq), true)
+	g._setRAM(ram.IF, uint32(val), 2)
+	g.testIRQ()
+}
+
+// GBATestIRQ
+func (g *GBA) testIRQ() {
+	if uint16(g._getRAM(ram.IE))&uint16(g._getRAM(ram.IF)) > 0 {
+		if !g.scheduler.Scheduled(scheduler.Irq) {
+			g.scheduler.ScheduleEvent(scheduler.Irq, g.triggerIRQ, 7)
+		}
 	}
 }
 
-func (g *GBA) triggerIRQ(irq IRQID) {
-	// if |= flag
-	iack := uint16(g._getRAM(ram.IF))
-	iack = iack | (1 << irq)
-	g.RAM.IO[ram.IOOffset(ram.IF)], g.RAM.IO[ram.IOOffset(ram.IF+1)] = byte(iack), byte(iack>>8)
-
+// _triggerIRQ
+func (g *GBA) triggerIRQ(cyclesLate uint64) {
 	g.halt = false
-	g.checkIRQ()
+	if uint16(g._getRAM(ram.IE))&uint16(g._getRAM(ram.IF)) == 0 {
+		return
+	}
+	if g._getRAM(ram.IME)&0b1 > 0 && !g.GetCPSRFlag(flagI) {
+		g.exception(irqVec, IRQ)
+	}
 }
 
 func (g *GBA) pipelining() {

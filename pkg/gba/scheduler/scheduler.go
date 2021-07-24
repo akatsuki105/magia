@@ -125,6 +125,11 @@ func (s *Scheduler) Until(name EventName) uint64 {
 	}
 }
 
+func (s *Scheduler) Scheduled(name EventName) bool {
+	until := s.Until(name)
+	return until != math.MaxUint64
+}
+
 func (s *Scheduler) String() string {
 	result := ""
 	event := s.root

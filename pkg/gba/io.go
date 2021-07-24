@@ -178,7 +178,7 @@ func (g *GBA) _setRAM(addr uint32, val uint32, width int) {
 		for i := uint32(0); i < uint32(width); i++ {
 			g.RAM.Set8(addr+i, byte(val>>(8*i)))
 		}
-		g.checkIRQ()
+		g.testIRQ()
 
 	case addr == ram.IF:
 		for i := uint32(0); i < uint32(width); i++ {
@@ -188,7 +188,7 @@ func (g *GBA) _setRAM(addr uint32, val uint32, width int) {
 
 	case addr == ram.IME:
 		g.RAM.Set8(addr, byte(val)&0b1)
-		g.checkIRQ()
+		g.testIRQ()
 
 	case addr == ram.HALTCNT:
 		g.halt = true
