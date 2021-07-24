@@ -152,6 +152,7 @@ func (g *GBA) Update() {
 
 // _startHdraw
 func (g *GBA) startHDraw(cyclesLate uint64) {
+	g.Sound.SoundClock(1232)
 	g.scheduler.ScheduleEvent(scheduler.StartHBlank, g.startHBlank, video.HDRAW_LENGTH-cyclesLate)
 
 	g.video.RenderPath.Vcount++
@@ -216,8 +217,6 @@ func (g *GBA) startHBlank(cyclesLate uint64) {
 
 // _midHblank
 func (g *GBA) midHBlank(cyclesLate uint64) {
-	g.Sound.SoundClock(1232)
-
 	dispstat := g.video.Dispstat()
 	g.video.SetDispstat(util.SetBit16(dispstat, video.HBLANK_FLAG, false))
 	g.scheduler.ScheduleEvent(scheduler.StartHDraw, g.startHDraw, video.HBLANK_FLIP-cyclesLate)
