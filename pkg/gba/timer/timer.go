@@ -1,8 +1,6 @@
 package timer
 
 import (
-	"fmt"
-
 	"github.com/pokemium/magia/pkg/gba/apu"
 	"github.com/pokemium/magia/pkg/gba/ram"
 	"github.com/pokemium/magia/pkg/gba/scheduler"
@@ -120,7 +118,6 @@ func (t *Timer) UpdateRegister(cyclesLate uint64) {
 	currentTime &= ^tickMask
 	t.p.scheduler.DescheduleEvent(t.event.name)
 	t.p.scheduler.ScheduleEventAbsolute(t.event.name, t.event.callback, currentTime)
-	fmt.Println(t.p.scheduler)
 }
 
 // TMnCNT_LO
