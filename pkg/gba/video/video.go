@@ -193,11 +193,6 @@ func NewVideo() *Video {
 	}
 }
 
-// VBlank returns true if in VBlank
-func (v *Video) VBlank() bool {
-	return util.Bit(uint16(v.IO[ram.IOOffset(ram.DISPSTAT)]), 0)
-}
-
 func (v *Video) Dispstat() uint16 {
 	return uint16(v.IO[ram.IOOffset(ram.DISPSTAT)+1])<<8 | uint16(v.IO[ram.IOOffset(ram.DISPSTAT)])
 }

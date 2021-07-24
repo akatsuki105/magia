@@ -102,24 +102,20 @@ func (g *GBA) Exit(s string) {
 }
 
 func (g *GBA) step() {
-	g.timers.Tick(0)
-
 	if g.halt {
 		g.timers.Tick(int(g.scheduler.Next() - g.scheduler.Cycle()))
 		return
 	}
 
+	g.timers.Tick(0)
 	g.inst = g.pipe.inst[0]
 	g.pipe.inst[0] = g.pipe.inst[1]
 
-	g.timers.InExec = true
 	if g.GetCPSRFlag(flagT) {
 		g.thumbStep()
 	} else {
 		g.armStep()
 	}
-	g.timers.InExec = false
-	g.timers.Tick(0)
 }
 
 // GBARaiseIRQ > GBATestIRQ > _triggerIRQ > ARMRaiseIRQ
@@ -161,6 +157,7 @@ func (g *GBA) startHDraw(cyclesLate uint64) {
 	g.video.RenderPath.Vcount++
 	if g.video.RenderPath.Vcount == video.VERTICAL_TOTAL_PIXELS {
 		g.video.RenderPath.Vcount = 0
+		g.Frame++
 	}
 	g.video.Set16(ram.VCOUNT, g.video.RenderPath.Vcount)
 
@@ -224,9 +221,6 @@ func (g *GBA) midHBlank(cyclesLate uint64) {
 	dispstat := g.video.Dispstat()
 	g.video.SetDispstat(util.SetBit16(dispstat, video.HBLANK_FLAG, false))
 	g.scheduler.ScheduleEvent(scheduler.StartHDraw, g.startHDraw, video.HBLANK_FLIP-cyclesLate)
-	if g.video.RenderPath.Vcount == 227 {
-		g.Frame++
-	}
 }
 
 // Draw GBA screen by 1 frame
