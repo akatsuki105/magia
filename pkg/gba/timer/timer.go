@@ -57,7 +57,7 @@ func (t *Timer) Overflow(cyclesLate uint64) {
 	}
 
 	if util.Bit(t.flags, DoIrq) {
-		t.p.irq(0x03 + t.id)
+		t.p.irq(0x03+t.id, cyclesLate)
 	}
 
 	if t.id < 2 {

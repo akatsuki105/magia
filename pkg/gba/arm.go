@@ -108,7 +108,7 @@ func (g *GBA) _armLDMUsr(inst uint32) {
 	if util.Bit(inst, 15) {
 		g._armLDM(inst)
 		g.restorePrivMode()
-		g.testIRQ()
+		g.testIRQNoDelay()
 		return
 	}
 	mode := g.getPrivMode()
@@ -438,7 +438,7 @@ func (g *GBA) armALUChangePrivMode(flush bool) {
 	if flush {
 		g.pipelining()
 	}
-	g.testIRQ()
+	g.testIRQNoDelay()
 }
 
 // set flag in Logic instruction
@@ -947,6 +947,6 @@ func (g *GBA) armMSR(inst uint32) {
 		g.CPSR &= ^mask
 		g.CPSR |= psr
 		g.Reg._setPrivMode(currMode, newMode)
-		g.testIRQ()
+		g.testIRQNoDelay()
 	}
 }

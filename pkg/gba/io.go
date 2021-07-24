@@ -178,17 +178,18 @@ func (g *GBA) _setRAM(addr uint32, val uint32, width int) {
 		for i := uint32(0); i < uint32(width); i++ {
 			g.RAM.Set8(addr+i, byte(val>>(8*i)))
 		}
-		g.testIRQ()
+		g.testIRQ(1)
 
 	case addr == ram.IF:
 		for i := uint32(0); i < uint32(width); i++ {
 			value := byte(g._getRAM(addr + i))
 			g.RAM.Set8(addr+i, value & ^byte(val>>(8*i)))
 		}
+		g.testIRQ(1)
 
 	case addr == ram.IME:
 		g.RAM.Set8(addr, byte(val)&0b1)
-		g.testIRQ()
+		g.testIRQ(1)
 
 	case addr == ram.HALTCNT:
 		g.halt = true

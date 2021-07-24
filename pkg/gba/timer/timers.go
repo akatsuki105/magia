@@ -32,11 +32,11 @@ type Timers struct {
 	timers    [4]*Timer
 	scheduler *scheduler.Scheduler
 	ram       *ram.RAM
-	irq       func(int)
+	irq       func(int, uint64)
 	dma       func(int)
 }
 
-func New(s *scheduler.Scheduler, ram *ram.RAM, irq, dma func(int)) *Timers {
+func New(s *scheduler.Scheduler, ram *ram.RAM, irq func(int, uint64), dma func(int)) *Timers {
 	p := &Timers{
 		scheduler: s,
 		ram:       ram,

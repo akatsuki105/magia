@@ -86,13 +86,12 @@ func New(src []byte, j [10]func() bool, audioStream []byte) *GBA {
 		joypad:     joypad.New(j),
 		scheduler:  s,
 	}
-	g.timers = timer.New(s, &g.RAM, func(i int) { g.raiseIRQ(IRQID(i)) }, func(ch int) { g.dmaTransferFifo(ch) })
+	g.timers = timer.New(s, &g.RAM, func(i int, cyclesLate uint64) { g.raiseIRQ(IRQID(i), cyclesLate) }, func(ch int) { g.dmaTransferFifo(ch) })
 	g._setRAM(ram.KEYINPUT, uint32(0x3ff), 2)
 	g.softReset()
 
 	g.video.RenderPath.Vcount = 170
-	g.RAM.IO[ram.IOOffset(ram.VCOUNT)] = 176
-	g.RAM.IO[ram.IOOffset(ram.VCOUNT)+1] = 0
+	g.video.Set16(ram.VCOUNT, 176)
 	g.scheduler.ScheduleEvent(scheduler.StartHBlank, g.startHBlank, 170)
 	return g
 }
@@ -163,7 +162,7 @@ func (g *GBA) startHDraw(cyclesLate uint64) {
 	if g.video.RenderPath.Vcount == video.VERTICAL_TOTAL_PIXELS {
 		g.video.RenderPath.Vcount = 0
 	}
-	g._setRAM(ram.VCOUNT, uint32(g.video.RenderPath.Vcount), 2)
+	g.video.Set16(ram.VCOUNT, g.video.RenderPath.Vcount)
 
 	if g.video.RenderPath.Vcount < video.VERTICAL_PIXELS {
 		g.video.ShouldStall = true
@@ -174,7 +173,7 @@ func (g *GBA) startHDraw(cyclesLate uint64) {
 	if g.video.RenderPath.Vcount == lyc {
 		dispstat = uint16(util.SetBit16(dispstat, video.VCOUNTER_FLAG, true))
 		if util.Bit(dispstat, video.VCOUNTER_IRQ) {
-			g.raiseIRQ(irqVCount)
+			g.raiseIRQ(irqVCount, cyclesLate)
 		}
 	} else {
 		dispstat = uint16(util.SetBit16(dispstat, video.VCOUNTER_FLAG, false))
@@ -187,13 +186,14 @@ func (g *GBA) startHDraw(cyclesLate uint64) {
 		g.video.SetDispstat(util.SetBit16(dispstat, video.VBLANK_FLAG, true))
 		g.dmaTransfer(dmaVBlank)
 		if util.Bit(dispstat, video.VBLANK_IRQ) {
-			g.raiseIRQ(irqVBlank)
+			g.raiseIRQ(irqVBlank, cyclesLate)
 		}
 	case video.VERTICAL_TOTAL_PIXELS - 1:
 		g.video.SetDispstat(util.SetBit16(dispstat, video.VBLANK_FLAG, false))
 	}
 }
 
+// _startHblank
 func (g *GBA) startHBlank(cyclesLate uint64) {
 	g.scheduler.ScheduleEvent(scheduler.MidHBlank, g.midHBlank, video.HBLANK_LENGTH-video.HBLANK_FLIP-cyclesLate)
 
@@ -210,13 +210,14 @@ func (g *GBA) startHBlank(cyclesLate uint64) {
 	}
 
 	if util.Bit(dispstat, video.HBLANK_IRQ) {
-		g.raiseIRQ(irqHBlank)
+		g.raiseIRQ(irqHBlank, cyclesLate)
 	}
 
 	g.video.ShouldStall = false
 	g.video.SetDispstat(dispstat)
 }
 
+// _midHblank
 func (g *GBA) midHBlank(cyclesLate uint64) {
 	g.Sound.SoundClock(1232)
 
@@ -232,20 +233,24 @@ func (g *GBA) midHBlank(cyclesLate uint64) {
 func (g *GBA) Draw() []byte { return g.video.RenderPath.FinishDraw() }
 
 // GBARaiseIRQ
-func (g *GBA) raiseIRQ(irq IRQID) {
+func (g *GBA) raiseIRQ(irq IRQID, cyclesLate uint64) {
 	val := uint16(g._getRAM(ram.IF))
 	val = util.SetBit16(val, int(irq), true)
 	g._setRAM(ram.IF, uint32(val), 2)
-	g.testIRQ()
+	g.testIRQ(cyclesLate)
 }
 
 // GBATestIRQ
-func (g *GBA) testIRQ() {
+func (g *GBA) testIRQ(cyclesLate uint64) {
 	if uint16(g._getRAM(ram.IE))&uint16(g._getRAM(ram.IF)) > 0 {
 		if !g.scheduler.Scheduled(scheduler.Irq) {
-			g.scheduler.ScheduleEvent(scheduler.Irq, g.triggerIRQ, 7)
+			g.scheduler.ScheduleEvent(scheduler.Irq, g.triggerIRQ, 7-cyclesLate)
 		}
 	}
+}
+
+func (g *GBA) testIRQNoDelay() {
+	g.testIRQ(0)
 }
 
 // _triggerIRQ
