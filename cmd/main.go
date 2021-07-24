@@ -52,8 +52,7 @@ func main() {
 // Run program
 func Run() ExitCode {
 	var (
-		showVersion  = flag.Bool("v", false, "show version")
-		showCartInfo = flag.Bool("c", false, "show cartridge info")
+		showVersion = flag.Bool("v", false, "show version")
 	)
 
 	flag.Parse()
@@ -70,11 +69,6 @@ func Run() ExitCode {
 	}
 
 	emu := emulator.New(data, path)
-	if *showCartInfo {
-		fmt.Println(emu.GBA.CartInfo())
-		return ExitCodeOK
-	}
-
 	if err := ebiten.RunGame(emu); err != nil {
 		fmt.Fprintf(os.Stderr, "crash in emulation: %s\n", err)
 	}

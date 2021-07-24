@@ -6,8 +6,21 @@ import (
 )
 
 const (
-	HDRAW_LENGTH = 960
-	HBLANK_FLIP  = 46
+	HORIZONTAL_PIXELS     = 240
+	VERTICAL_PIXELS       = 160
+	VERTICAL_TOTAL_PIXELS = 228
+	HDRAW_LENGTH          = 960
+	HBLANK_LENGTH         = 272
+	HBLANK_FLIP           = 46
+)
+
+const (
+	VBLANK_FLAG   = 0
+	HBLANK_FLAG   = 1
+	VCOUNTER_FLAG = 2
+	VBLANK_IRQ    = 3
+	HBLANK_IRQ    = 4
+	VCOUNTER_IRQ  = 5
 )
 
 const DISPSTAT_MASK = 0xff38
@@ -169,8 +182,9 @@ func (v *Video) Set32(addr uint32, val uint32) {
 }
 
 type Video struct {
-	IO         [96]byte
-	RenderPath *SoftwareRenderer
+	IO          [96]byte
+	RenderPath  *SoftwareRenderer
+	ShouldStall bool
 }
 
 func NewVideo() *Video {
@@ -184,24 +198,11 @@ func (v *Video) VBlank() bool {
 	return util.Bit(uint16(v.IO[ram.IOOffset(ram.DISPSTAT)]), 0)
 }
 
-func (v *Video) SetVBlank(b bool) {
-	if b {
-		v.IO[ram.IOOffset(ram.DISPSTAT)] = v.IO[ram.IOOffset(ram.DISPSTAT)] | 0b0000_0001
-		return
-	}
-	v.IO[ram.IOOffset(ram.DISPSTAT)] = v.IO[ram.IOOffset(ram.DISPSTAT)] & 0b1111_1110
+func (v *Video) Dispstat() uint16 {
+	return uint16(v.IO[ram.IOOffset(ram.DISPSTAT)+1])<<8 | uint16(v.IO[ram.IOOffset(ram.DISPSTAT)])
 }
-func (v *Video) SetHBlank(b bool) {
-	if b {
-		v.IO[ram.IOOffset(ram.DISPSTAT)] = v.IO[ram.IOOffset(ram.DISPSTAT)] | 0b0000_0010
-		return
-	}
-	v.IO[ram.IOOffset(ram.DISPSTAT)] = v.IO[ram.IOOffset(ram.DISPSTAT)] & 0b1111_1101
-}
-func (v *Video) SetVCounter(b bool) {
-	if b {
-		v.IO[ram.IOOffset(ram.DISPSTAT)] = v.IO[ram.IOOffset(ram.DISPSTAT)] | 0b0000_0100
-		return
-	}
-	v.IO[ram.IOOffset(ram.DISPSTAT)] = v.IO[ram.IOOffset(ram.DISPSTAT)] & 0b1111_1011
+
+func (v *Video) SetDispstat(val uint16) {
+	v.IO[ram.IOOffset(ram.DISPSTAT)] = byte(val)
+	v.IO[ram.IOOffset(ram.DISPSTAT)+1] = byte(val >> 8)
 }

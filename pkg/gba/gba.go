@@ -52,7 +52,6 @@ type GBA struct {
 	CartHeader *cart.Header
 	RAM        ram.RAM
 	inst       Inst
-	cycle      int
 	Frame      uint
 	halt       bool
 	pipe       Pipe
@@ -90,6 +89,11 @@ func New(src []byte, j [10]func() bool, audioStream []byte) *GBA {
 	g.timers = timer.New(s, &g.RAM, func(i int) { g.triggerIRQ(IRQID(i)) }, func(ch int) { g.dmaTransferFifo(ch) })
 	g._setRAM(ram.KEYINPUT, uint32(0x3ff), 2)
 	g.softReset()
+
+	g.video.RenderPath.Vcount = 170
+	g.RAM.IO[ram.IOOffset(ram.VCOUNT)] = 176
+	g.RAM.IO[ram.IOOffset(ram.VCOUNT)+1] = 0
+	g.scheduler.ScheduleEvent(scheduler.StartHBlank, g.startHBlank, 170)
 	return g
 }
 
@@ -98,28 +102,12 @@ func (g *GBA) Exit(s string) {
 	os.Exit(0)
 }
 
-func (g *GBA) exec(cycles int) {
+func (g *GBA) step() {
 	if g.halt {
-		tmp := g.cycle
-		g.tick(cycles)
-		g.cycle = tmp
+		g.timers.Tick(int(g.scheduler.Next() - g.scheduler.Cycle()))
 		return
 	}
 
-	for g.cycle < cycles {
-		g.timers.InExec = true
-		g.step()
-		g.timers.InExec = false
-		if g.halt {
-			g.tick(cycles - g.cycle)
-		} else {
-			g.tick(0)
-		}
-	}
-	g.cycle -= cycles
-}
-
-func (g *GBA) step() {
 	g.inst = g.pipe.inst[0]
 	g.pipe.inst[0] = g.pipe.inst[1]
 
@@ -148,31 +136,9 @@ func (g *GBA) exception(addr uint32, mode Mode) {
 
 // Update GBA by 1 frame
 func (g *GBA) Update() {
-	g.video.RenderPath.Vcount = 0
-
-	// line 0~159
-	for y := 0; y < 160; y++ {
-		g.scanline()
+	for g.video.RenderPath.Vcount < video.VERTICAL_TOTAL_PIXELS-1 {
+		g.step()
 	}
-
-	// VBlank
-	dispstat := uint16(g._getRAM(ram.DISPSTAT))
-	if util.Bit(dispstat, 3) {
-		g.triggerIRQ(irqVBlank)
-	}
-
-	// line 160~226
-	g.video.SetVBlank(true)
-	g.dmaTransfer(dmaVBlank)
-	for y := 0; y < 67; y++ {
-		g.scanline()
-	}
-	g.video.SetVBlank(false) // clear on 227
-
-	// line 227
-	g.scanline()
-
-	g.video.RenderPath.StartDraw()
 
 	if g.Frame%2 == 0 {
 		g.joypad.Read()
@@ -184,40 +150,71 @@ func (g *GBA) Update() {
 	g.Sound.Play()
 }
 
-func (g *GBA) scanline() {
-	dispstat := uint16(g._getRAM(ram.DISPSTAT))
-	vCount, lyc := byte(g.video.RenderPath.Vcount), byte(g._getRAM(ram.DISPSTAT+1))
-	if vCount == lyc {
-		if util.Bit(dispstat, 5) {
+func (g *GBA) startHDraw(cyclesLate uint64) {
+	g.scheduler.ScheduleEvent(scheduler.StartHBlank, g.startHBlank, video.HDRAW_LENGTH-cyclesLate)
+
+	g.video.RenderPath.Vcount++
+	if g.video.RenderPath.Vcount == video.VERTICAL_TOTAL_PIXELS {
+		g.video.RenderPath.Vcount = 0
+	}
+	g._setRAM(ram.VCOUNT, uint32(g.video.RenderPath.Vcount), 2)
+
+	if g.video.RenderPath.Vcount < video.VERTICAL_PIXELS {
+		g.video.ShouldStall = true
+	}
+
+	dispstat := g.video.Dispstat()
+	if g.video.RenderPath.Vcount == (dispstat >> 8) {
+		dispstat = uint16(util.SetBit16(dispstat, video.VCOUNTER_FLAG, true))
+		if util.Bit(dispstat, video.VCOUNTER_IRQ) {
 			g.triggerIRQ(irqVCount)
 		}
+	} else {
+		dispstat = uint16(util.SetBit16(dispstat, video.VCOUNTER_FLAG, false))
 	}
+	g.video.SetDispstat(dispstat)
 
-	g.exec(1006)
-
-	g.startHBlank()
-
-	g.exec(1232 - 1006)
-	g.Sound.SoundClock(1232)
-	g.video.SetHBlank(false)
-
-	vcount := g.video.RenderPath.Vcount
-	if vcount < video.VERTICAL_PIXELS {
-		g.video.RenderPath.DrawScanline(vcount)
+	// Note: state may be recorded during callbacks, so ensure it is consistent!
+	switch g.video.RenderPath.Vcount {
+	case video.VERTICAL_PIXELS:
+		g.video.SetDispstat(util.SetBit16(dispstat, video.VBLANK_FLAG, true))
+		g.dmaTransfer(dmaVBlank)
+		if util.Bit(dispstat, video.VBLANK_IRQ) {
+			g.triggerIRQ(irqVBlank)
+		}
+	case video.VERTICAL_TOTAL_PIXELS - 1:
+		g.video.SetDispstat(util.SetBit16(dispstat, video.VBLANK_FLAG, false))
 	}
-	g.video.RenderPath.Vcount++ // increment vcount
 }
 
-func (g *GBA) startHBlank() {
-	if !g.video.VBlank() {
-		dispstat := uint16(g._getRAM(ram.DISPSTAT))
-		if util.Bit(dispstat, 4) {
-			g.triggerIRQ(irqHBlank)
-		}
+func (g *GBA) startHBlank(cyclesLate uint64) {
+	g.scheduler.ScheduleEvent(scheduler.MidHBlank, g.midHBlank, video.HBLANK_LENGTH-video.HBLANK_FLIP-cyclesLate)
+	g.Sound.SoundClock(1232)
+
+	// Begin Hblank
+	dispstat := g.video.Dispstat()
+	dispstat = util.SetBit16(dispstat, video.HBLANK_FLAG, true)
+	if g.video.RenderPath.Vcount < video.VERTICAL_PIXELS {
+		g.video.RenderPath.DrawScanline(g.video.RenderPath.Vcount)
+		g.dmaTransfer(dmaHBlank)
 	}
 
-	g.video.SetHBlank(true)
-	g.dmaTransfer(dmaHBlank)
+	if g.video.RenderPath.Vcount >= 2 && g.video.RenderPath.Vcount < video.VERTICAL_PIXELS+2 {
+		// TODO
+	}
+
+	if util.Bit(dispstat, video.HBLANK_IRQ) {
+		g.triggerIRQ(irqHBlank)
+	}
+
+	g.video.ShouldStall = false
+	g.video.SetDispstat(dispstat)
+}
+
+func (g *GBA) midHBlank(cyclesLate uint64) {
+	dispstat := g.video.Dispstat()
+	g.video.SetDispstat(util.SetBit16(dispstat, video.HBLANK_FLAG, false))
+	g.scheduler.ScheduleEvent(scheduler.StartHDraw, g.startHDraw, video.HBLANK_FLIP-cyclesLate)
 }
 
 // Draw GBA screen by 1 frame
@@ -306,12 +303,6 @@ func (g *GBA) exceptionReturn(vec uint32) uint32 {
 	return pc
 }
 
-func (g *GBA) CartInfo() string {
-	str := `%s
-ROM size: %s`
-	return fmt.Sprintf(str, g.CartHeader, util.FormatSize(uint(g.RAM.ROMSize)))
-}
-
 func (g *GBA) in(addr, start, end uint32) bool {
 	return addr >= start && addr <= end
 }
@@ -325,10 +316,6 @@ func (g *GBA) interwork() {
 		g.R[15] &= ^uint32(3)
 	}
 	g.pipelining()
-}
-
-func (g *GBA) tick(c int) {
-	g.cycle += c
 }
 
 func (g *GBA) PanicHandler(place string, stack bool) {

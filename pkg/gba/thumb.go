@@ -139,17 +139,17 @@ func (g *GBA) thumbALU(inst uint16) {
 	case 2: // LSL
 		is := g.R[rs] & 0xff
 		g.R[rd] = lslArm(g.R[rd], is, g.Carry(is > 0), false) // Rd = Rd << (Rs AND 0FFh)
-		g.tick(1)
+		g.timers.Tick(1)
 		g.armLogicSet(uint32(rd), true, g.R[rd], false)
 	case 3: // LSR
 		is := g.R[rs] & 0xff
 		g.R[rd] = lsrArm(g.R[rd], is, g.Carry(is > 0), false) // Rd = Rd >> (Rs AND 0FFh)
-		g.tick(1)
+		g.timers.Tick(1)
 		g.armLogicSet(uint32(rd), true, g.R[rd], false)
 	case 4: // ASR
 		is := g.R[rs] & 0xff
 		g.R[rd] = asrArm(g.R[rd], is, g.Carry(is > 0), false) // Rd = Rd >> (Rs AND 0FFh)
-		g.tick(1)
+		g.timers.Tick(1)
 		g.armLogicSet(uint32(rd), true, g.R[rd], false)
 	case 5: // ADC
 		res := uint64(lhs) + uint64(rhs) + uint64(g.CarryU32())
@@ -162,7 +162,7 @@ func (g *GBA) thumbALU(inst uint16) {
 	case 7: // ROR
 		is := g.R[rs] & 0xff
 		g.R[rd] = rorArm(g.R[rd], is, g.Carry(is > 0), false) // Rd = Rd ROR (Rs AND 0FFh)
-		g.tick(1)
+		g.timers.Tick(1)
 		g.armLogicSet(uint32(rd), true, g.R[rd], false)
 	case 8: // TST
 		g.armLogicSet(uint32(rd), true, g.R[rd]&g.R[rs], true)
@@ -185,13 +185,13 @@ func (g *GBA) thumbALU(inst uint16) {
 		b1, b2, b3 := (g.R[rd]>>8)&0xff, (g.R[rd]>>16)&0xff, (g.R[rd]>>24)&0xff
 		switch {
 		case b3 > 0:
-			g.tick(4)
+			g.timers.Tick(4)
 		case b2 > 0:
-			g.tick(3)
+			g.timers.Tick(3)
 		case b1 > 0:
-			g.tick(2)
+			g.timers.Tick(2)
 		default:
-			g.tick(1)
+			g.timers.Tick(1)
 		}
 
 		g.R[rd] = lhs * rhs // MUL{S} Rd,Rs
@@ -239,7 +239,7 @@ func (g *GBA) thumbHiRegisterBX(inst uint16) {
 func (g *GBA) thumbLoadPCRel(inst uint16) {
 	rd, nn := (inst>>8)&0b111, uint32((inst<<2)&0x3fc)
 	g.R[rd] = g.getRAM32((g.R[15]&^uint32(3))+nn, false)
-	g.tick(1)
+	g.timers.Tick(1)
 }
 
 func (g *GBA) thumbLoadStoreRegOfs(inst uint16) {
@@ -248,16 +248,16 @@ func (g *GBA) thumbLoadStoreRegOfs(inst uint16) {
 	switch opcode := (inst >> 10) & 0b11; opcode {
 	case 0: // STR Rd,[Rb,Ro]
 		g.setRAM32(g.R[rb]+g.R[ro], g.R[rd], false) // N
-		g.tick(g.cycleS2N())                        // -S + 2N
+		g.timers.Tick(g.cycleS2N())                 // -S + 2N
 	case 1: // STRB Rd,[Rb,Ro] (BYTE[Rb+Ro] = Rd)
 		g.setRAM8(g.R[rb]+g.R[ro], byte(g.R[rd]), false)
-		g.tick(g.cycleS2N())
+		g.timers.Tick(g.cycleS2N())
 	case 2: // LDR Rd,[Rb,Ro] (Rd = WORD[Rb+Ro])
 		g.R[rd] = g.getRAM32(g.R[rb]+g.R[ro], false)
-		g.tick(1)
+		g.timers.Tick(1)
 	case 3: // LDRB Rd,[Rb,Ro]
 		g.R[rd] = uint32(g.getRAM8(g.R[rb]+g.R[ro], false))
-		g.tick(1)
+		g.timers.Tick(1)
 	}
 }
 
@@ -267,15 +267,15 @@ func (g *GBA) thumbLoadStoreSBH(inst uint16) {
 	switch opcode := (inst >> 10) & 0b11; opcode {
 	case 0: // STRH Rd,[Rb,Ro]
 		g.setRAM16(g.R[rb]+g.R[ro], uint16(g.R[rd]), false)
-		g.tick(g.cycleS2N())
+		g.timers.Tick(g.cycleS2N())
 	case 1: // LDSB Rd,[Rb,Ro]
 		value := int32(g.getRAM8(g.R[rb]+g.R[ro], false))
 		value = (value << 24) >> 24
 		g.R[rd] = uint32(value)
-		g.tick(1)
+		g.timers.Tick(1)
 	case 2: // LDRH Rd,[Rb,Ro]
 		g.R[rd] = uint32(g.getRAM16(g.R[rb]+g.R[ro], false))
-		g.tick(1)
+		g.timers.Tick(1)
 	case 3: // LDSH Rd,[Rb,Ro]
 		addr := g.R[rb] + g.R[ro]
 		val := g.getRAM16(addr, false)
@@ -285,7 +285,7 @@ func (g *GBA) thumbLoadStoreSBH(inst uint16) {
 		value := int32(val)
 		value = (value << 16) >> 16
 		g.R[rd] = uint32(value)
-		g.tick(1)
+		g.timers.Tick(1)
 	}
 }
 
@@ -296,17 +296,17 @@ func (g *GBA) thumbLoadStoreImmOfs(inst uint16) {
 	case 0: // STR Rd,[Rb,#nn]
 		nn *= 4
 		g.setRAM32(g.R[rb]+nn, g.R[rd], false)
-		g.tick(g.cycleS2N())
+		g.timers.Tick(g.cycleS2N())
 	case 1: // LDR Rd,[Rb,#nn]
 		nn *= 4
 		g.R[rd] = g.getRAM32(g.R[rb]+nn, false)
-		g.tick(1)
+		g.timers.Tick(1)
 	case 2: // STRB Rd,[Rb,#nn]
 		g.setRAM8(g.R[rb]+nn, byte(g.R[rd]), false)
-		g.tick(g.cycleS2N())
+		g.timers.Tick(g.cycleS2N())
 	case 3: // LDRB Rd,[Rb,#nn]
 		g.R[rd] = uint32(g.getRAM8(g.R[rb]+nn, false))
-		g.tick(1)
+		g.timers.Tick(1)
 	}
 }
 
@@ -316,10 +316,10 @@ func (g *GBA) thumbLoadStoreH(inst uint16) {
 	switch opcode := (inst >> 11) & 0b1; opcode {
 	case 0: // STRH Rd,[Rb,#nn]
 		g.setRAM16(g.R[rb]+nn, uint16(g.R[rd]), false)
-		g.tick(g.cycleS2N())
+		g.timers.Tick(g.cycleS2N())
 	case 1: // LDRH Rd,[Rb,#nn]
 		g.R[rd] = uint32(g.getRAM16(g.R[rb]+nn, false))
-		g.tick(1)
+		g.timers.Tick(1)
 	}
 }
 
@@ -330,10 +330,10 @@ func (g *GBA) thumbLoadSPRel(inst uint16) {
 	switch opcode {
 	case 0:
 		g.setRAM32(sp+nn, g.R[rd], false)
-		g.tick(g.cycleS2N())
+		g.timers.Tick(g.cycleS2N())
 	case 1:
 		g.R[rd] = g.getRAM32(sp+nn, false)
-		g.tick(1)
+		g.timers.Tick(1)
 	}
 }
 
@@ -356,7 +356,7 @@ func (g *GBA) thumbStack(inst uint16) {
 				n++
 			}
 		}
-		g.tick(g.cycleS2N())
+		g.timers.Tick(g.cycleS2N())
 	case 1:
 		n := 0
 		for i := 0; i < 8; i++ {
@@ -372,7 +372,7 @@ func (g *GBA) thumbStack(inst uint16) {
 			g.R[13] += 4
 			g.pipelining()
 		}
-		g.tick(1)
+		g.timers.Tick(1)
 	}
 }
 
@@ -390,7 +390,7 @@ func (g *GBA) thumbStackMultiple(inst uint16) {
 				n++
 			}
 		} // (n-1)S + N
-		g.tick(g.cycleS2N()) // (n-2)S + 2N
+		g.timers.Tick(g.cycleS2N()) // (n-2)S + 2N
 	case 1:
 		n := 0
 		for i := 0; i < 8; i++ {
@@ -402,7 +402,7 @@ func (g *GBA) thumbStackMultiple(inst uint16) {
 				n++
 			}
 		} // (n-1)S + N
-		g.tick(1) // (n-1)S + N + 1
+		g.timers.Tick(1) // (n-1)S + N + 1
 	}
 }
 

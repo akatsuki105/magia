@@ -162,7 +162,7 @@ func (g *GBA) _armLDM(inst uint32) {
 		}
 	}
 
-	g.tick(1)
+	g.timers.Tick(1)
 	if util.Bit(inst, 15) {
 		g.pipelining()
 	}
@@ -230,7 +230,7 @@ func (g *GBA) _armSTM(inst uint32) {
 		}
 	}
 
-	g.tick(g.cycleS2N())
+	g.timers.Tick(g.cycleS2N())
 
 	// Pre-indexing, write-back is optional
 	writeBack := util.Bit(inst, 21)
@@ -302,7 +302,7 @@ func (g *GBA) armLDR(inst uint32) {
 	if rd == 15 {
 		g.pipelining()
 	}
-	g.tick(1)
+	g.timers.Tick(1)
 }
 
 func (g *GBA) armSTR(inst uint32) {
@@ -344,7 +344,7 @@ func (g *GBA) armSTR(inst uint32) {
 		g.R[rn] = addr
 	}
 
-	g.tick(g.cycleS2N())
+	g.timers.Tick(g.cycleS2N())
 }
 
 func (g *GBA) armALUOp2(inst uint32) uint32 {
@@ -356,7 +356,7 @@ func (g *GBA) armALUOp2(inst uint32) uint32 {
 		salt := uint32(0)
 		isRegister := util.Bit(inst, 4)
 		if isRegister {
-			g.tick(1)
+			g.timers.Tick(1)
 			is = g.R[(inst>>8)&0b1111] & 0b1111_1111
 			if rm == 15 {
 				salt = 4
@@ -630,19 +630,19 @@ func (g *GBA) armMPY(inst uint32) {
 }
 
 func (g *GBA) armMPYCycle(cycle int, val uint32) {
-	g.tick(cycle)
+	g.timers.Tick(cycle)
 	switch {
 	case val&0xfff0 == 0xfff0:
-		g.tick(1)
+		g.timers.Tick(1)
 	case val&0xff00 == 0xff00:
-		g.tick(2)
+		g.timers.Tick(2)
 	case val&0xf000 == 0xf000:
-		g.tick(3)
+		g.timers.Tick(3)
 	default:
-		g.tick(4)
+		g.timers.Tick(4)
 	}
 
-	g.tick(g.cycleS2N())
+	g.timers.Tick(g.cycleS2N())
 }
 
 // Rd=Rm*Rs
@@ -758,7 +758,7 @@ func (g *GBA) armLDRH(inst uint32) {
 	if rd == 15 {
 		g.pipelining()
 	}
-	g.tick(1)
+	g.timers.Tick(1)
 }
 
 func (g *GBA) armLDRSB(inst uint32) {
@@ -797,7 +797,7 @@ func (g *GBA) armLDRSB(inst uint32) {
 	if rd == 15 {
 		g.pipelining()
 	}
-	g.tick(1)
+	g.timers.Tick(1)
 }
 
 func (g *GBA) armLDRSH(inst uint32) {
@@ -843,7 +843,7 @@ func (g *GBA) armLDRSH(inst uint32) {
 	if rd == 15 {
 		g.pipelining()
 	}
-	g.tick(1)
+	g.timers.Tick(1)
 }
 
 func (g *GBA) armSTRH(inst uint32) {
@@ -875,7 +875,7 @@ func (g *GBA) armSTRH(inst uint32) {
 		}
 		g.R[rn] = addr
 	}
-	g.tick(g.cycleS2N())
+	g.timers.Tick(g.cycleS2N())
 }
 
 // ref: https://github.com/gdkchan/gdkGBA/blob/master/arm.c#L1223

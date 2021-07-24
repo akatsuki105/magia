@@ -6,12 +6,21 @@ import (
 	"github.com/pokemium/magia/pkg/util"
 )
 
+func (ts *Timers) Tick(cycles int) {
+	ts.scheduler.Add(uint64(cycles))
+	for {
+		if ts.scheduler.Next() > ts.scheduler.Cycle() {
+			break
+		}
+		ts.scheduler.DoEvent()
+	}
+}
+
 // IsIO returns true if addr is for Timer IO register.
 func IsIO(addr uint32) bool { return (addr >= 0x0400_0100) && (addr < 0x0400_0110) }
 
 type Timers struct {
 	Enable    byte
-	InExec    bool
 	timers    [4]*Timer
 	scheduler *scheduler.Scheduler
 	ram       *ram.RAM

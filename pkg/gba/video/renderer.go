@@ -17,9 +17,6 @@ const OBJWIN_MASK = 0x20
 const WRITTEN_MASK = 0x80
 const PRIORITY_MASK = 0b0111
 
-const HORIZONTAL_PIXELS = 240
-const VERTICAL_PIXELS = 160
-
 // Screen pixel data
 type Backing struct {
 	color []uint16
@@ -898,8 +895,6 @@ func (s *SoftwareRenderer) finishScanline(backing *Backing) {
 		xx += 4
 	}
 }
-
-func (s *SoftwareRenderer) StartDraw() { return }
 
 func (s *SoftwareRenderer) FinishDraw() ImageData {
 	s.bg[2].sx = s.bg[2].refx
