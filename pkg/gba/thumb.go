@@ -9,7 +9,7 @@ import (
 func (g *GBA) thumbStep() {
 	pc := util.Align2(g.R[15])
 	g.pipe.inst[1] = Inst{
-		inst: uint32(g.getRAM16(pc, true)),
+		inst: uint32(uint16(g._getRAM(pc))),
 		loc:  pc,
 	}
 	g.thumbExec(uint16(g.inst.inst))

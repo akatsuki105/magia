@@ -17,7 +17,7 @@ const (
 func (g *GBA) armStep() {
 	pc := util.Align2(g.R[15])
 	g.pipe.inst[1] = Inst{
-		inst: g.getRAM32(pc, true),
+		inst: g._getRAM(pc),
 		loc:  pc,
 	}
 	g.armExec(g.inst.inst)

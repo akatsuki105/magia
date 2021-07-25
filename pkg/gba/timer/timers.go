@@ -8,12 +8,6 @@ import (
 
 func (ts *Timers) Tick(cycles int) {
 	ts.scheduler.Add(uint64(cycles))
-	for {
-		if ts.scheduler.Next() > ts.scheduler.Cycle() {
-			break
-		}
-		ts.scheduler.DoEvent()
-	}
 }
 
 // IsIO returns true if addr is for Timer IO register.

@@ -91,6 +91,7 @@ func (ch *DMA) wordCount() int {
 	return int(wordCount)
 }
 
+// GBADMARunVblank
 func (g *GBA) dmaTransfer(t dmaTiming) {
 	for i, ch := range g.dma {
 		if !ch.enabled() || ch.timing() != t {

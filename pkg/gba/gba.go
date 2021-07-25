@@ -48,6 +48,7 @@ const (
 // GBA is core object
 type GBA struct {
 	Reg
+	cycles     uint64
 	video      *video.Video
 	CartHeader *cart.Header
 	RAM        ram.RAM
@@ -104,17 +105,26 @@ func (g *GBA) Exit(s string) {
 func (g *GBA) step() {
 	if g.halt {
 		g.timers.Tick(int(g.scheduler.Next() - g.scheduler.Cycle()))
-		return
-	}
-
-	g.timers.Tick(0)
-	g.inst = g.pipe.inst[0]
-	g.pipe.inst[0] = g.pipe.inst[1]
-
-	if g.GetCPSRFlag(flagT) {
-		g.thumbStep()
 	} else {
-		g.armStep()
+		g.inst = g.pipe.inst[0]
+		g.pipe.inst[0] = g.pipe.inst[1]
+
+		if g.GetCPSRFlag(flagT) {
+			g.thumbStep()
+		} else {
+			g.armStep()
+		}
+	}
+	g.processEvents()
+}
+
+// GBAProcessEvents
+func (g *GBA) processEvents() {
+	for {
+		if g.scheduler.Next() > g.scheduler.Cycle() {
+			break
+		}
+		g.scheduler.DoEvent()
 	}
 }
 
@@ -139,7 +149,9 @@ func (g *GBA) exception(addr uint32, mode Mode) {
 func (g *GBA) Update() {
 	frame := g.Frame
 	for frame == g.Frame {
+		cycles := g.scheduler.Cycle()
 		g.step()
+		g.Sound.SoundClock(uint32(g.scheduler.Cycle() - cycles))
 	}
 
 	if g.Frame%2 == 0 {
@@ -152,7 +164,6 @@ func (g *GBA) Update() {
 
 // _startHdraw
 func (g *GBA) startHDraw(cyclesLate uint64) {
-	g.Sound.SoundClock(1232)
 	g.scheduler.ScheduleEvent(scheduler.StartHBlank, g.startHBlank, video.HDRAW_LENGTH-cyclesLate)
 
 	g.video.RenderPath.Vcount++
