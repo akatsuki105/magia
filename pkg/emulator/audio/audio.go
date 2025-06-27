@@ -25,5 +25,5 @@ func Play() {
 	if player == nil {
 		return
 	}
-	player.Write(Stream)
+	go player.Write(Stream)
 }
