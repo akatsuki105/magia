@@ -1,3 +1,6 @@
+> [!CAUTION]
+> This emulator project is old and NOT MAINTAINED, please see [DawnGBA](https://github.com/akatsuki105/dawngba), my new GBA emulator project!
+
 # Magia
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/pokemium/magia)](https://goreportcard.com/report/github.com/pokemium/magia)
